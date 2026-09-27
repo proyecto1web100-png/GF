@@ -1024,7 +1024,7 @@ button,select,input[type="checkbox"],input[type="color"]{cursor:pointer}
     <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
       <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)">
       <img class="upload-preview" id="uploadPreview">
-      <div class="upload-text" id="uploadText">📁 Haz clic para subir una foto<br><small>JPG, PNG, WEBP — máx 5MB</small></div>
+      <div class="upload-text" id="uploadText">📁 Haz clic para subir una foto<br><small>JPG, PNG, WEBP — máx 25MB</small></div>
       <div id="uploadingText" style="display:none;font-size:0.72rem;color:var(--gold);letter-spacing:0.1em;">⏳ Subiendo imagen...</div>
     </div>
     <div class="or-div">— o pega una URL —</div>
@@ -1884,7 +1884,7 @@ async function saveChanges() {
       await fetch(WEB_APP, {
         method: 'POST',
         mode: 'no-cors',
-        body: JSON.stringify({ token: _tk(),products: chunk, clear: first}),
+        body: JSON.stringify({ token: _tk(), products: chunk, clear: first, soloActualizar: true }),
         headers: {'Content-Type': 'application/json'}
       });
       first = false;
@@ -1912,44 +1912,73 @@ function openModal(idx) {
 }
 function closeModal(){ document.getElementById('imageModal').classList.remove('open'); currentEdit=null; uploadedB64=null; }
 function prevUrl(url){ const pr=document.getElementById('uploadPreview'); if(url){pr.src=url;pr.style.display='block';}else{pr.style.display='none';} }
+// Achica la foto en el teléfono antes de subirla (máx. 1600 px, JPEG):
+// sube más rápido y gasta menos del plan gratis de Cloudinary.
+function prepararFoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const src = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(src);
+      const MAX = 1600;
+      const k = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width  = Math.round(img.naturalWidth  * k);
+      c.height = Math.round(img.naturalHeight * k);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';                 // fondo blanco para PNG transparentes
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(src); reject(new Error('No se pudo leer la imagen')); };
+    img.src = src;
+  });
+}
+
+// Sube la foto a Cloudinary a través del Apps Script (la clave no está en la
+// página). Si el Apps Script publicado todavía no tiene esa función, o
+// Cloudinary falla, se sube a ImgBB como antes. Devuelve la URL.
+async function subirFoto(file) {
+  const dataUrl = await prepararFoto(file);
+  const r = await apiPanel({ type: 'subir_imagen', imagen: dataUrl });
+  if (r && r.ok && r.url) return r.url;
+  console.warn('Cloudinary no disponible, se usa ImgBB:', (r && (r.error || r.msg)) || r);
+  const form = new FormData();
+  form.append('image', dataUrl.split(',')[1]);
+  const res  = await fetch('https://api.imgbb.com/1/upload?key=' + _ibk(), { method:'POST', body: form });
+  const json = await res.json();
+  if (json.success) return json.data.url;
+  throw new Error('no se pudo subir la imagen');
+}
+
 function handleFile(e){
   const file = e.target.files[0]; if(!file) return;
-  if(file.size > 5 * 1024 * 1024){ setStatus('❌ La imagen supera 5MB.','error'); return; }
+  if(file.size > 25 * 1024 * 1024){ setStatus('❌ La imagen supera 25MB.','error'); return; }
 
-  // Mostrar spinner mientras sube a ImgBB
+  // Mostrar spinner mientras sube
   document.getElementById('uploadText').style.display    = 'none';
   document.getElementById('uploadingText').style.display = 'block';
   document.getElementById('uploadArea').style.pointerEvents = 'none';
   document.getElementById('uploadPreview').style.display = 'none';
   document.querySelector('.modal-btn.ok').disabled = true;
 
-  const reader = new FileReader();
-  reader.onload = async ev => {
-    const base64 = ev.target.result.split(',')[1]; // solo los datos, sin el prefijo
+  (async () => {
     try {
-      const form = new FormData();
-      form.append('image', base64);
-      const res  = await fetch('https://api.imgbb.com/1/upload?key=' + _ibk(), { method:'POST', body: form });
-      const json = await res.json();
-      if(json.success){
-        uploadedB64 = null;
-        const url   = json.data.url;
-        document.getElementById('modalUrl').value = url;
-        const pr = document.getElementById('uploadPreview');
-        pr.src = url; pr.style.display = 'block';
-      } else {
-        setStatus('❌ Error al subir imagen a ImgBB.','error');
-      }
+      const url = await subirFoto(file);
+      uploadedB64 = null;
+      document.getElementById('modalUrl').value = url;
+      const pr = document.getElementById('uploadPreview');
+      pr.src = url; pr.style.display = 'block';
     } catch(err){
-      setStatus('❌ Error de red al subir imagen.','error');
+      setStatus('❌ Error al subir imagen: ' + err.message,'error');
     } finally {
       document.getElementById('uploadText').style.display    = 'block';
       document.getElementById('uploadingText').style.display = 'none';
       document.getElementById('uploadArea').style.pointerEvents = '';
       document.querySelector('.modal-btn.ok').disabled = false;
     }
-  };
-  reader.readAsDataURL(file);
+  })();
 }
 function applyImage(){
   if(currentEdit===null)return;
@@ -3529,7 +3558,7 @@ function frSelect(idx) {
     <div class="fr-drop" id="frDrop" onclick="document.getElementById('frFileInput').click()">
       <input type="file" id="frFileInput" accept="image/*" style="display:none" onchange="frHandleFile(event)">
       <div class="fr-drop-icon">📁</div>
-      <div class="fr-drop-text" id="frDropText">Haz clic o arrastra la foto aquí<br><span>Se sube a ImgBB automáticamente</span><br><small style="opacity:0.5">JPG, PNG, WEBP — máx 5MB</small></div>
+      <div class="fr-drop-text" id="frDropText">Haz clic o arrastra la foto aquí<br><span>Se sube automáticamente</span><br><small style="opacity:0.5">JPG, PNG, WEBP — máx 25MB</small></div>
       <div class="fr-drop-uploading" id="frDropUploading">⏳ Subiendo imagen...</div>
     </div>
 
@@ -3561,40 +3590,27 @@ function frApplyUrl() {
 
 async function frHandleFile(e) {
   const file = e.target.files[0]; if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { setStatus('❌ La imagen supera 5MB.', 'error'); return; }
+  if (file.size > 25 * 1024 * 1024) { setStatus('❌ La imagen supera 25MB.', 'error'); return; }
 
   document.getElementById('frDropText').style.display    = 'none';
   document.getElementById('frDropUploading').style.display = 'block';
   document.getElementById('frDrop').style.pointerEvents  = 'none';
   document.getElementById('frNextBtn').disabled = true;
 
-  const reader = new FileReader();
-  reader.onload = async ev => {
-    try {
-      const base64 = ev.target.result.split(',')[1];
-      const form   = new FormData();
-      form.append('image', base64);
-      const res  = await fetch('https://api.imgbb.com/1/upload?key=' + _ibk(), { method:'POST', body: form });
-      const json = await res.json();
-      if (json.success) {
-        frSaveToProduct(json.data.url);
-      } else {
-        setStatus('❌ Error al subir imagen a ImgBB.', 'error');
-      }
-    } catch(err) {
-      setStatus('❌ Error de red al subir imagen.', 'error');
-    } finally {
-      const dropText = document.getElementById('frDropText');
-      const dropUp   = document.getElementById('frDropUploading');
-      const drop     = document.getElementById('frDrop');
-      const nextBtn  = document.getElementById('frNextBtn');
-      if (dropText) dropText.style.display = 'block';
-      if (dropUp)   dropUp.style.display   = 'none';
-      if (drop)     drop.style.pointerEvents = '';
-      if (nextBtn)  nextBtn.disabled = false;
-    }
-  };
-  reader.readAsDataURL(file);
+  try {
+    frSaveToProduct(await subirFoto(file));
+  } catch(err) {
+    setStatus('❌ Error al subir imagen: ' + err.message, 'error');
+  } finally {
+    const dropText = document.getElementById('frDropText');
+    const dropUp   = document.getElementById('frDropUploading');
+    const drop     = document.getElementById('frDrop');
+    const nextBtn  = document.getElementById('frNextBtn');
+    if (dropText) dropText.style.display = 'block';
+    if (dropUp)   dropUp.style.display   = 'none';
+    if (drop)     drop.style.pointerEvents = '';
+    if (nextBtn)  nextBtn.disabled = false;
+  }
 }
 
 function frSaveToProduct(url) {
@@ -3673,7 +3689,7 @@ async function fotosSaveAll() {
       await fetch(WEB_APP, {
         method:'POST', mode:'no-cors',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ token: _tk(), products: chunk, clear: first })
+        body: JSON.stringify({ token: _tk(), products: chunk, clear: first, soloActualizar: true })
       });
       first = false;
     }

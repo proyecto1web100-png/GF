@@ -1,6 +1,9 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v7
-//  Cambios vs v6:
+//  Gaby's Fashion — Google Apps Script v8
+//  Cambios vs v7:
+//    - Limpieza de productos repetidos (limpiarProductosDuplicados)
+//    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
+//  Cambios de v7 (vs v6):
 //    - Corregida la llave faltante en out() (rompia el archivo)
 //    - handleProductos: escritura por lotes (2 llamadas en vez de ~40 000)
 //    - handleVentas / banners / categorias: encabezado + datos en un solo setValues
@@ -110,6 +113,8 @@ function doPost(e) {
     const type = data.type;
 
     if (data.products !== undefined) return handleProductos(data);
+    if (type === 'productos_fin')    return handleProductosFin(data);
+    if (type === 'subir_imagen')     return handleSubirImagen(data); // solo desde el panel
     if (type === 'banners')          return handleBanners(data);
     if (type === 'config')           return handleConfig(data);
     if (type === 'categorias')       return handleCategorias(data);
@@ -136,10 +141,24 @@ const PROD_HEADERS = ['nombre','categoria','subcategoria','precio','descripcion'
 const PROD_COL = { nombre:0, categoria:1, subcategoria:2, precio:3, descripcion:4, cantidad:5, emoji:6, imagen:7, nuevo:8, oculto:9 };
 
 function handleProductos(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    return escribirProductos(data);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function escribirProductos(data) {
   const ss        = SpreadsheetApp.openById(SHEET_ID);
   const sheet     = ss.getSheets()[0];
   const productos = data.products || [];
   const NCOL      = PROD_HEADERS.length;
+  // El panel solo edita lo que ya esta en la hoja. Si pudiera agregar filas,
+  // un panel abierto desde antes de una limpieza volveria a crear los
+  // repetidos al guardar. Las filas nuevas solo las crea el sync de RMS.
+  const soloActualizar = data.soloActualizar === true;
 
   // 1) Asegurar la fila de encabezados
   if (sheet.getLastRow() === 0) {
@@ -184,12 +203,18 @@ function handleProductos(data) {
   let actualizados = 0;
 
   productos.forEach(p => {
+    // Lo que manda RMS se repara ("NiÃ±a" -> "Niña") para que coincida con
+    // la fila buena y no cree otra. Lo del panel no: trae el nombre tal como
+    // esta en la hoja y repararlo lo haria pisar otra fila.
+    if (!soloActualizar) p.nombre = repararTexto(p.nombre);
     const key = String(p.nombre || '').toLowerCase().trim();
     if (!key) return;
 
     if (idx[key] !== undefined) {
       aplicar(valores[idx[key]], p);
       actualizados++;
+    } else if (soloActualizar) {
+      return;
     } else if (idxNuevos[key] !== undefined) {
       aplicar(nuevos[idxNuevos[key]], p);
     } else {
@@ -204,6 +229,412 @@ function handleProductos(data) {
   if (nuevos.length)  sheet.getRange(2 + valores.length, 1, nuevos.length, NCOL).setValues(nuevos);
 
   return ok(productos.length + ' productos procesados, ' + actualizados + ' actualizados, ' + nuevos.length + ' nuevos agregados');
+}
+
+// ── LIMPIEZA DE PRODUCTOS ────────────────────────────────────
+//  Por que habia repetidos: la hoja solo agrega o actualiza por nombre, nunca
+//  borra. Cuando el sync mandaba "NiÃ±a" en vez de "Niña", se crearon filas
+//  con el nombre dañado. Al corregirse la tipografia, RMS empezo a mandar el
+//  nombre bueno, que no coincide con el dañado, y se agrego otra fila. La
+//  dañada quedo para siempre con la cantidad vieja (RMS ya no la actualiza).
+//
+//  handleProductosFin: el sync manda al final la lista completa de nombres
+//  de RMS y se quitan las filas que ya no estan ahi (dañadas, repetidas o
+//  productos que se desactivaron).
+//  limpiarProductosDuplicados: lo mismo pero sin RMS, para correrlo a mano.
+//
+//  Nada se pierde: las filas quitadas se copian a la hoja ProductosEliminados,
+//  y la foto/descripcion/subcategoria/emoji de una fila dañada pasa a la
+//  buena si la buena no tiene.
+
+// Contenido que se carga a mano en la hoja (no viene de RMS) y que se pasa de
+// la fila dañada a la buena. "oculto" y "nuevo" NO: si alguien oculto la
+// dañada justamente por estar repetida, no hay que ocultar tambien la buena.
+const PROD_MANUALES = ['subcategoria','descripcion','emoji','imagen'];
+
+// Caracteres de Windows-1252 en 0x80-0x9F que no coinciden con Latin-1
+const CP1252_BYTE = {
+  0x20AC:0x80, 0x201A:0x82, 0x0192:0x83, 0x201E:0x84, 0x2026:0x85, 0x2020:0x86,
+  0x2021:0x87, 0x02C6:0x88, 0x2030:0x89, 0x0160:0x8A, 0x2039:0x8B, 0x0152:0x8C,
+  0x017D:0x8E, 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2022:0x95,
+  0x2013:0x96, 0x2014:0x97, 0x02DC:0x98, 0x2122:0x99, 0x0161:0x9A, 0x203A:0x9B,
+  0x0153:0x9C, 0x017E:0x9E, 0x0178:0x9F
+};
+
+// Decodifica bytes UTF-8; devuelve null si no son UTF-8 valido
+function utf8Estricto(bytes) {
+  let s = '', i = 0;
+  while (i < bytes.length) {
+    const b = bytes[i];
+    if (b < 0x80) { s += String.fromCharCode(b); i++; continue; }
+    let n, cp;
+    if (b >= 0xC2 && b <= 0xDF)      { n = 1; cp = b & 0x1F; }
+    else if (b >= 0xE0 && b <= 0xEF) { n = 2; cp = b & 0x0F; }
+    else if (b >= 0xF0 && b <= 0xF4) { n = 3; cp = b & 0x07; }
+    else return null;
+    if (i + n >= bytes.length) return null;
+    for (let k = 1; k <= n; k++) {
+      const c = bytes[i + k];
+      if ((c & 0xC0) !== 0x80) return null;
+      cp = (cp << 6) | (c & 0x3F);
+    }
+    s += String.fromCodePoint(cp);
+    i += n + 1;
+  }
+  return s;
+}
+
+// "NiÃ±a" -> "Niña". Si el texto no es de ese tipo de daño, lo deja igual.
+function repararTexto(s) {
+  let t = String(s == null ? '' : s);
+  for (let vuelta = 0; vuelta < 2; vuelta++) {
+    if (!/[Â-Å][\u0080-¿Œ-™]/.test(t)) break;
+    const bytes = [];
+    for (const ch of t) {
+      const c = ch.codePointAt(0);
+      if (c <= 0xFF) bytes.push(c);
+      else if (CP1252_BYTE[c] !== undefined) bytes.push(CP1252_BYTE[c]);
+      else return t;
+    }
+    const r = utf8Estricto(bytes);
+    if (r === null || r === t) break;
+    t = r;
+  }
+  return t;
+}
+
+// Nombre dañado: con el caracter de reemplazo, un "?" o restos tipo "Ã"
+function esSospechoso(s) {
+  return /[�?ÂÃ]/.test(String(s || ''));
+}
+
+function claveProducto(s) {
+  return repararTexto(s).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+// "ni?a" / "ni�a" (irrecuperables) -> patron que acepta "niña"
+function patronComodin(clave) {
+  const partes = clave.split(/[�?]+/);
+  if (partes.length < 2) return null;
+  return new RegExp('^' + partes.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^\\s]{1,2}') + '$');
+}
+
+function vacio(v) { return v === '' || v === null || v === undefined; }
+
+// Pasa a la fila que se queda lo que se edito a mano en la que se va
+function fusionarManuales(destino, origen) {
+  PROD_MANUALES.forEach(c => {
+    const i = PROD_COL[c];
+    if (vacio(destino[i]) && !vacio(origen[i])) destino[i] = origen[i];
+  });
+}
+
+// nombresRMS: lista completa de nombres de RMS, o null para limpiar sin RMS.
+function depurarProductos(nombresRMS) {
+  const ss     = SpreadsheetApp.openById(SHEET_ID);
+  const sheet  = ss.getSheets()[0];
+  const ANCHO  = Math.max(sheet.getLastColumn(), PROD_HEADERS.length);
+  const nFilas = Math.max(sheet.getLastRow() - 1, 0);
+  const res    = { antes: nFilas, quedan: nFilas, eliminadas: 0, renombradas: 0 };
+  if (!nFilas) return res;
+
+  const valores = sheet.getRange(2, 1, nFilas, ANCHO).getValues();
+  const nombre  = v => String(v[PROD_COL.nombre] || '');
+  const exacta  = v => nombre(v).toLowerCase().trim();
+  const enRMS   = nombresRMS
+    ? new Set(nombresRMS.map(n => repararTexto(n).toLowerCase().trim()).filter(Boolean))
+    : null;
+
+  // 1) Filas buenas: las que estan en RMS (o, sin RMS, las de nombre sano).
+  //    De repetidas exactas se queda la primera.
+  const queda    = valores.map(() => false);
+  const vistas   = {};
+  const porClave = {};
+  valores.forEach((v, i) => {
+    const k = exacta(v);
+    if (!k) { queda[i] = true; return; }   // fila sin nombre: no se toca
+    const buena = enRMS ? enRMS.has(k) : !esSospechoso(nombre(v));
+    if (buena && vistas[k] === undefined) {
+      vistas[k] = i;
+      queda[i]  = true;
+      const c = claveProducto(nombre(v));
+      if (porClave[c] === undefined) porClave[c] = i;
+    }
+  });
+
+  // 2) Las demas: si son la version dañada de una buena, le pasan sus datos
+  //    manuales y se van. Si no tienen pareja: con RMS se van (ya no existen);
+  //    sin RMS se repara el nombre si se puede y se quedan.
+  const eliminadas = [];
+  const ahora = new Date();
+  valores.forEach((v, i) => {
+    if (queda[i]) return;
+    const c = claveProducto(nombre(v));
+    let j = porClave[c];
+    if (j === undefined) {
+      const re = patronComodin(c);
+      if (re) {
+        const m = Object.keys(porClave).filter(k => re.test(k));
+        if (m.length === 1) j = porClave[m[0]];
+      }
+    }
+    if (j !== undefined) {
+      fusionarManuales(valores[j], v);
+      eliminadas.push([ahora].concat(v, ['repetido de: ' + nombre(valores[j])]));
+      return;
+    }
+    if (enRMS) {
+      eliminadas.push([ahora].concat(v, ['ya no esta en RMS']));
+      return;
+    }
+    const reparado = repararTexto(nombre(v));
+    if (reparado !== nombre(v) && !esSospechoso(reparado)) {
+      v[PROD_COL.nombre] = reparado;
+      res.renombradas++;
+    }
+    queda[i] = true;
+    const c2 = claveProducto(nombre(v));
+    if (porClave[c2] === undefined) porClave[c2] = i;
+  });
+
+  if (!eliminadas.length && !res.renombradas) return res;
+
+  // 3) Respaldo de lo quitado
+  if (eliminadas.length) {
+    let bk = ss.getSheetByName('ProductosEliminados');
+    if (!bk) {
+      bk = ss.insertSheet('ProductosEliminados', ss.getNumSheets());
+      const enc = ['fecha_eliminado'].concat(sheet.getRange(1, 1, 1, ANCHO).getValues()[0], ['motivo']);
+      bk.getRange(1, 1, 1, enc.length).setValues([enc]).setFontWeight('bold');
+    }
+    bk.getRange(bk.getLastRow() + 1, 1, eliminadas.length, eliminadas[0].length).setValues(eliminadas);
+  }
+
+  // 4) Reescribir la hoja solo con las que quedan
+  const quedan = valores.filter((v, i) => queda[i]);
+  if (quedan.length) sheet.getRange(2, 1, quedan.length, ANCHO).setValues(quedan);
+  if (quedan.length < nFilas) sheet.deleteRows(2 + quedan.length, nFilas - quedan.length);
+
+  res.quedan     = quedan.length;
+  res.eliminadas = eliminadas.length;
+  return res;
+}
+
+function handleProductosFin(data) {
+  const nombres = data.nombres || [];
+  // Si RMS no devolvio casi nada es un error de lectura, no una tienda vacia:
+  // no se borra nada.
+  if (nombres.length < 10) {
+    return out(JSON.stringify({ ok: false, error: 'productos_fin: solo llegaron ' + nombres.length + ' nombres, no se limpia la hoja' }));
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const r = depurarProductos(nombres);
+    return ok('limpieza: ' + r.antes + ' filas, ' + r.eliminadas + ' quitadas (repetidas o fuera de RMS), quedan ' + r.quedan);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Correr a mano desde el editor de Apps Script para limpiar ya, sin esperar
+// al proximo sync. Quita las filas dañadas que tienen su version buena y
+// corrige el nombre de las que se pueden reparar.
+function limpiarProductosDuplicados() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const r = depurarProductos(null);
+    Logger.log('Filas antes: ' + r.antes + ' | quitadas: ' + r.eliminadas +
+               ' | nombres corregidos: ' + r.renombradas + ' | quedan: ' + r.quedan);
+    Logger.log('Las filas quitadas estan en la hoja ProductosEliminados.');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ── FOTOS EN CLOUDINARY ──────────────────────────────────────
+//  Las fotos estaban en ImgBB, que dejo de mostrarlas. Ahora van a
+//  Cloudinary (plan gratis). Las credenciales NO van en el codigo: se ponen en
+//  Configuracion del proyecto > Propiedades del script:
+//    CLOUDINARY_CLOUD, CLOUDINARY_KEY, CLOUDINARY_SECRET
+//
+//  - handleSubirImagen: el panel manda la foto aqui y se sube a Cloudinary,
+//    asi la clave nunca queda en la pagina.
+//  - migrarImagenesACloudinary: correr a mano (las veces que haga falta) para
+//    pasar las fotos que ya estan en ImgBB. Cloudinary las descarga directo
+//    del enlace de ImgBB, asi que ImgBB tiene que estar respondiendo.
+
+const CLD_MIGRADAS = 'gabys/imgbb';      // carpeta de las fotos traidas de ImgBB
+const CLD_NUEVAS   = 'gabys/productos';  // carpeta de las que se suben desde el panel
+const LOGO_IMGBB   = 'https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg';
+
+function cloudinaryCfg() {
+  const p = PropertiesService.getScriptProperties();
+  const cfg = {
+    cloud:  (p.getProperty('CLOUDINARY_CLOUD')  || '').trim(),
+    key:    (p.getProperty('CLOUDINARY_KEY')    || '').trim(),
+    secret: (p.getProperty('CLOUDINARY_SECRET') || '').trim()
+  };
+  if (!cfg.cloud || !cfg.key || !cfg.secret) {
+    throw new Error('Faltan CLOUDINARY_CLOUD, CLOUDINARY_KEY o CLOUDINARY_SECRET en Propiedades del script');
+  }
+  return cfg;
+}
+
+// Firma de Cloudinary: parametros ordenados "a=1&b=2" + secreto, en SHA-1
+function firmaCloudinary(params, secret) {
+  const texto = Object.keys(params).sort().map(k => k + '=' + params[k]).join('&') + secret;
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_1, texto, Utilities.Charset.UTF_8);
+  return bytes.map(b => ((b & 0xFF) + 0x100).toString(16).slice(1)).join('');
+}
+
+// Arma el pedido de subida. file: un enlace (Cloudinary lo descarga) o un
+// data URI "data:image/jpeg;base64,...".
+function pedidoCloudinary(cfg, file, opciones) {
+  const params = Object.assign({ timestamp: Math.floor(Date.now() / 1000) }, opciones);
+  return {
+    url: 'https://api.cloudinary.com/v1_1/' + cfg.cloud + '/image/upload',
+    method: 'post',
+    payload: Object.assign({}, params, { file: file, api_key: cfg.key, signature: firmaCloudinary(params, cfg.secret) }),
+    muteHttpExceptions: true
+  };
+}
+
+// Devuelve la secure_url o lanza error con el mensaje de Cloudinary
+function leerRespuestaCloudinary(res) {
+  let json = {};
+  try { json = JSON.parse(res.getContentText()); } catch (e) {}
+  if (res.getResponseCode() === 200 && json.secure_url) return json.secure_url;
+  throw new Error('Cloudinary ' + res.getResponseCode() + ': ' + ((json.error && json.error.message) || res.getContentText().slice(0, 200)));
+}
+
+function handleSubirImagen(data) {
+  const img = String(data.imagen || '');
+  if (!/^data:image\/(jpeg|png|webp|gif);base64,/.test(img)) {
+    return out(JSON.stringify({ ok: false, error: 'imagen invalida' }));
+  }
+  if (img.length > 14 * 1024 * 1024) {
+    return out(JSON.stringify({ ok: false, error: 'imagen muy grande' }));
+  }
+  try {
+    const cfg = cloudinaryCfg();
+    const { url, ...opciones } = pedidoCloudinary(cfg, img, { folder: CLD_NUEVAS });
+    const res = UrlFetchApp.fetch(url, opciones);
+    return out(JSON.stringify({ ok: true, url: leerRespuestaCloudinary(res) }));
+  } catch (err) {
+    return out(JSON.stringify({ ok: false, error: err.message }));
+  }
+}
+
+// Solo enlaces directos a la imagen (i.ibb.co/...). Los de la pagina de
+// ImgBB (ibb.co/xxxx) son HTML y Cloudinary no los puede usar.
+function esImgbbDirecto(v) {
+  return /^https?:\/\/i\.ibb\.co\/\S+$/i.test(String(v || '').trim());
+}
+
+// Nombre fijo por foto: si se corre dos veces no se duplica en Cloudinary.
+// https://i.ibb.co/JRFYK77G/foto.jpg -> gabys/imgbb/JRFYK77G_foto
+function idCloudinaryDe(url) {
+  const partes = String(url).trim().split('?')[0].split('/').slice(3);
+  const limpio = partes.join('_').replace(/\.[a-z0-9]+$/i, '').replace(/[^A-Za-z0-9_-]/g, '_');
+  return CLD_MIGRADAS + '/' + limpio;
+}
+
+// Prueba: solo cuenta cuantas fotos de ImgBB hay en cada hoja. No sube nada.
+function contarImagenesImgbb() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let total = 0;
+  const unicas = {};
+  ss.getSheets().forEach(sh => {
+    if (sh.getName() === 'ProductosEliminados' || sh.getLastRow() === 0) return;
+    let n = 0;
+    sh.getDataRange().getValues().forEach(fila => fila.forEach(v => {
+      if (esImgbbDirecto(v)) { n++; unicas[String(v).trim()] = true; }
+    }));
+    if (n) Logger.log(sh.getName() + ': ' + n + ' celdas con foto de ImgBB');
+    total += n;
+  });
+  Logger.log('Total: ' + total + ' celdas, ' + Object.keys(unicas).length + ' fotos distintas.');
+  cloudinaryCfg();   // avisa ya si faltan las propiedades
+  Logger.log('Credenciales de Cloudinary: configuradas.');
+}
+
+// Pasa las fotos de ImgBB a Cloudinary y cambia los enlaces en todas las
+// hojas. Apps Script corta a los 6 minutos: si quedan fotos, lo dice en el
+// registro y hay que volver a ejecutarla (sigue donde quedo).
+function migrarImagenesACloudinary() {
+  const cfg    = cloudinaryCfg();
+  const inicio = Date.now();
+  const LIMITE = 4.5 * 60 * 1000;
+  const LOTE   = 8;
+  const ss     = SpreadsheetApp.openById(SHEET_ID);
+
+  const hojas = ss.getSheets().filter(sh => sh.getName() !== 'ProductosEliminados' && sh.getLastRow() > 0);
+  const pendientes = {};
+  pendientes[LOGO_IMGBB] = true;
+  hojas.forEach(sh => sh.getDataRange().getValues().forEach(fila => fila.forEach(v => {
+    if (esImgbbDirecto(v)) pendientes[String(v).trim()] = true;
+  })));
+  const urls = Object.keys(pendientes);
+  Logger.log('Fotos de ImgBB por pasar: ' + urls.length);
+
+  // 1) Subir en lotes paralelos
+  const nuevas = {};
+  const fallas = [];
+  let i = 0;
+  for (; i < urls.length && Date.now() - inicio < LIMITE; i += LOTE) {
+    const lote = urls.slice(i, i + LOTE);
+    const pedidos = lote.map(u => pedidoCloudinary(cfg, u, { public_id: idCloudinaryDe(u), overwrite: 'false' }));
+    const resp = UrlFetchApp.fetchAll(pedidos);
+    resp.forEach((r, k) => {
+      try { nuevas[lote[k]] = leerRespuestaCloudinary(r); }
+      catch (err) { fallas.push(lote[k] + ' -> ' + err.message); }
+    });
+  }
+  const sinIntentar = Math.max(urls.length - i, 0);
+
+  // 2) Cambiar los enlaces en las hojas. Por columna: si la columna no tiene
+  //    formulas se escribe entera de una vez; si tiene, celda por celda.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  let cambiadas = 0;
+  try {
+    hojas.forEach(sh => {
+      const rango = sh.getDataRange();
+      const vals  = rango.getValues();
+      const nCols = vals[0].length;
+      for (let c = 0; c < nCols; c++) {
+        const filas = [];
+        for (let r = 0; r < vals.length; r++) {
+          const v = String(vals[r][c] || '').trim();
+          if (esImgbbDirecto(v) && nuevas[v]) filas.push(r);
+        }
+        if (!filas.length) continue;
+        const col = sh.getRange(1, c + 1, vals.length, 1);
+        const tieneFormulas = col.getFormulas().some(f => f[0]);
+        if (tieneFormulas) {
+          filas.forEach(r => sh.getRange(r + 1, c + 1).setValue(nuevas[String(vals[r][c]).trim()]));
+        } else {
+          const colVals = vals.map(f => [f[c]]);
+          filas.forEach(r => { colVals[r][0] = nuevas[String(vals[r][c]).trim()]; });
+          col.setValues(colVals);
+        }
+        cambiadas += filas.length;
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+
+  Logger.log('Subidas a Cloudinary: ' + Object.keys(nuevas).length + ' | enlaces cambiados en la hoja: ' + cambiadas);
+  if (nuevas[LOGO_IMGBB]) Logger.log('Logo: ' + nuevas[LOGO_IMGBB]);
+  if (fallas.length) {
+    Logger.log('No se pudieron pasar ' + fallas.length + ' (se quedan con el enlace de ImgBB):');
+    fallas.slice(0, 30).forEach(f => Logger.log('  ' + f));
+  }
+  if (sinIntentar) Logger.log('Faltan ' + sinIntentar + ' fotos por tiempo: ejecuta de nuevo migrarImagenesACloudinary.');
+  else if (!fallas.length) Logger.log('Listo: todas las fotos estan en Cloudinary.');
 }
 
 // ── VENTAS ───────────────────────────────────────────────────

@@ -25,6 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://opensheet.elk.sh">
 <link rel="dns-prefetch" href="https://i.ibb.co">
+<link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230E0E0E'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-family='Georgia,serif' font-size='44' font-style='italic' fill='%23C9A84C'%3EG%3C/text%3E%3C/svg%3E">
 <link rel="icon" type="image/jpeg" href="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
 <link rel="apple-touch-icon" href="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
@@ -1126,7 +1127,7 @@
     <!-- Logo + texto principal -->
     <div class="nosotros-top">
       <div class="nosotros-logo-wrap" id="nosotrosLogo">
-        <img src="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg" alt="Gaby's Fashion Logo" class="nosotros-logo-img">
+        <img src="https://res.cloudinary.com/nk1cbbe2/image/upload/f_auto,q_auto,c_limit,w_400/gabys/imgbb/JRFYK77G_PHOTO-2026-05-25-15-58-59" onerror="this.onerror=null;this.src='https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg'" alt="Gaby's Fashion Logo" class="nosotros-logo-img">
         <span class="nosotros-since">Desde 2012</span>
       </div>
       <div class="nosotros-content">
@@ -1542,7 +1543,7 @@ function makeCardHTML(p) {
     ? `<span class="price-liq"><span class="price-old">${p.precioOriginal}</span><span class="price-new">${p.precio}</span></span>`
     : `<span class="product-price">${p.precio || 'Consultar'}</span>`;
   const imgHTML = p.imagen
-    ? `<img class="img-bg lazy" data-src="${p.imagen}" alt="" aria-hidden="true" decoding="async"><img class="img-main lazy" data-src="${p.imagen}" alt="${p.nombre}" decoding="async">`
+    ? `<img class="img-bg lazy" data-src="${fotoOptimizada(p.imagen, 160)}" alt="" aria-hidden="true" decoding="async"><img class="img-main lazy" data-src="${fotoOptimizada(p.imagen, 700)}" alt="${p.nombre}" decoding="async">`
     : `<span class="emoji-fallback">${p.emoji || '🛍️'}</span>`;
   return `<div class="product-card">
     <div class="product-img">${imgHTML}${badge}${liqBadge}</div>
@@ -1894,8 +1895,95 @@ function aplicarLiquidacion(p) {
   return p;
 }
 
+// ── FOTOS ────────────────────────────────────────────────────
+// Las fotos de Cloudinary se piden ya achicadas al ancho que se muestra y en
+// el mejor formato para el navegador (WebP/AVIF). Pesan mucho menos y gastan
+// menos del plan gratis. Las que siguen en ImgBB u otro sitio van tal cual.
+function fotoOptimizada(url, ancho) {
+  const u = String(url || '').trim();
+  const m = u.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/);
+  if (!m || /^[a-z]{1,3}_[^/]*\//.test(m[2])) return u;   // no es Cloudinary o ya trae ajustes
+  return m[1] + 'f_auto,q_auto,c_limit,w_' + ancho + '/' + m[2];
+}
+
+// ── REPETIDOS POR TIPOGRAFÍA ─────────────────────────────────
+// Cuando el sync mandaba "NiÃ±a" en vez de "Niña" quedaron filas con el
+// nombre dañado, y al corregirse se agregó la fila buena al lado. La dañada
+// ya no la actualiza RMS (cantidad vieja). Aquí se muestra una sola: la de
+// nombre sano, con la foto/descripción de la dañada si la buena no tiene.
+// La hoja se limpia del todo con el Apps Script; esto es la red de seguridad.
+const CP1252_BYTE = {
+  0x20AC:0x80, 0x201A:0x82, 0x0192:0x83, 0x201E:0x84, 0x2026:0x85, 0x2020:0x86,
+  0x2021:0x87, 0x02C6:0x88, 0x2030:0x89, 0x0160:0x8A, 0x2039:0x8B, 0x0152:0x8C,
+  0x017D:0x8E, 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2022:0x95,
+  0x2013:0x96, 0x2014:0x97, 0x02DC:0x98, 0x2122:0x99, 0x0161:0x9A, 0x203A:0x9B,
+  0x0153:0x9C, 0x017E:0x9E, 0x0178:0x9F
+};
+
+function repararTexto(s) {
+  let t = String(s == null ? '' : s);
+  for (let vuelta = 0; vuelta < 2; vuelta++) {
+    if (!/[\u00C2-\u00C5][\u0080-\u00BF\u0152-\u2122]/.test(t)) break;
+    const bytes = [];
+    for (const ch of t) {
+      const c = ch.codePointAt(0);
+      if (c <= 0xFF) bytes.push(c);
+      else if (CP1252_BYTE[c] !== undefined) bytes.push(CP1252_BYTE[c]);
+      else return t;
+    }
+    let r;
+    try { r = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(bytes)); }
+    catch (e) { break; }
+    if (r === t) break;
+    t = r;
+  }
+  return t;
+}
+
+function esSospechoso(s) { return /[\uFFFD?\u00C2\u00C3]/.test(String(s || '')); }
+function claveProducto(s) { return repararTexto(s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+
+// "ni?a" / "ni\uFFFDa" (irrecuperables) -> patrón que acepta "niña"
+function patronComodin(clave) {
+  const partes = clave.split(/[\uFFFD?]+/);
+  if (partes.length < 2) return null;
+  return new RegExp('^' + partes.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^\\s]{1,2}') + '$');
+}
+
+function quitarRepetidos(lista) {
+  const MANUALES = ['subcategoria', 'descripcion', 'emoji', 'imagen'];
+  const fusionar = (dest, orig) => MANUALES.forEach(c => {
+    if (!(dest[c] || '').toString().trim() && (orig[c] || '').toString().trim()) dest[c] = orig[c];
+  });
+  const buenos = [], porClave = {}, dudosos = [];
+  lista.forEach(p => {
+    if (esSospechoso(p.nombre)) { dudosos.push(p); return; }
+    const c = claveProducto(p.nombre);
+    if (porClave[c] === undefined) { porClave[c] = buenos.length; buenos.push(p); }
+    else fusionar(buenos[porClave[c]], p);     // repetido exacto: vale el primero
+  });
+  dudosos.forEach(p => {
+    const c = claveProducto(p.nombre);
+    let i = porClave[c];
+    if (i === undefined) {
+      const re = patronComodin(c);
+      if (re) {
+        const m = Object.keys(porClave).filter(k => re.test(k));
+        if (m.length === 1) i = porClave[m[0]];
+      }
+    }
+    if (i !== undefined) { fusionar(buenos[i], p); return; }
+    // Sin pareja: se muestra, con el nombre reparado si se puede
+    p.nombre = repararTexto(p.nombre);
+    const c2 = claveProducto(p.nombre);
+    if (porClave[c2] === undefined) porClave[c2] = buenos.length;
+    buenos.push(p);
+  });
+  return buenos;
+}
+
 function parseRows(data) {
-  return data.map(row => {
+  return quitarRepetidos(data.map(row => {
     const obj = {};
     Object.keys(row).forEach(k => { obj[k.toLowerCase().trim()] = row[k]; });
     obj.categoria = fixCat(obj.categoria);
@@ -1903,8 +1991,7 @@ function parseRows(data) {
     aplicarLiquidacion(obj);
     obj._precio = getPrecioNum(obj);   // ya con la rebaja aplicada
     return obj;
-  }).filter(p => {
-    if (!p.nombre) return false;
+  }).filter(p => !!p.nombre)).filter(p => {
     if ((p.oculto||'').toString().toUpperCase() === 'SI') return false;
     const cant = parseFloat((p.cantidad||'').toString().trim());
     if (isNaN(cant) || cant < 1) return false;
@@ -2041,7 +2128,7 @@ function buildCarousel(slides) {
 
   function slideHTML(s) {
     return `<div class="carousel-slide">
-      <img src="${s.imagen}" alt="${s.titulo||''}" loading="eager" decoding="async">
+      <img src="${fotoOptimizada(s.imagen, 1600)}" alt="${s.titulo||''}" loading="eager" decoding="async">
       <div class="slide-overlay"></div>
       ${s.titulo || s.subtitulo ? `<div class="slide-caption">
         ${s.titulo ? `<h2>${s.titulo}</h2>` : ''}
@@ -2358,7 +2445,7 @@ function cartRender() {
 
   el.innerHTML = items.map(([key, {product:p, qty}]) => {
     const thumb = p.imagen
-      ? `<img src="${p.imagen}" alt="${p.nombre}" loading="lazy" onerror="this.style.display='none'">`
+      ? `<img src="${fotoOptimizada(p.imagen, 160)}" alt="${p.nombre}" loading="lazy" onerror="this.style.display='none'">`
       : `<span class="ci-fallback">${p.emoji || '🛍️'}</span>`;
     return `<div class="cart-item">
       <div class="cart-item-thumb">${thumb}</div>
