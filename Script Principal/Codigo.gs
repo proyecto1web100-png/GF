@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v8
+//  Gaby's Fashion — Google Apps Script v8.1
 //  Cambios vs v7:
 //    - Limpieza de productos repetidos (limpiarProductosDuplicados)
 //    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
@@ -482,6 +482,33 @@ function cloudinaryCfg() {
   return cfg;
 }
 
+// Prueba real de las credenciales (no sube nada). Lanza un error que dice
+// que revisar, sin mostrar el secret.
+function probarCloudinary(cfg) {
+  const pistas = 'API Key termina en ...' + cfg.key.slice(-4) +
+                 ', API Secret tiene ' + cfg.secret.length + ' caracteres (normalmente 27)';
+  if (/\*/.test(cfg.secret)) {
+    throw new Error('El API Secret tiene asteriscos: se copio oculto. En Cloudinary toca el ojito para verlo y copialo de nuevo. (' + pistas + ')');
+  }
+  if (cfg.secret === cfg.key) {
+    throw new Error('CLOUDINARY_SECRET tiene el mismo valor que CLOUDINARY_KEY. (' + pistas + ')');
+  }
+  const res = UrlFetchApp.fetch('https://api.cloudinary.com/v1_1/' + cfg.cloud + '/usage', {
+    headers: { Authorization: 'Basic ' + Utilities.base64Encode(cfg.key + ':' + cfg.secret) },
+    muteHttpExceptions: true
+  });
+  const code = res.getResponseCode();
+  if (code === 200) return pistas;
+  if (code === 401) {
+    throw new Error('Cloudinary rechazo la API Key o el API Secret. Revisa que sean de la MISMA fila en ' +
+      'Settings > API Keys (si generaste una clave nueva, cambia tambien CLOUDINARY_KEY). (' + pistas + ')');
+  }
+  if (code === 404) {
+    throw new Error('No existe la cuenta "' + cfg.cloud + '": revisa CLOUDINARY_CLOUD (Cloud name del Dashboard).');
+  }
+  throw new Error('Cloudinary respondio ' + code + ': ' + res.getContentText().slice(0, 200));
+}
+
 // Firma de Cloudinary: parametros ordenados "a=1&b=2" + secreto, en SHA-1
 function firmaCloudinary(params, secret) {
   const texto = Object.keys(params).sort().map(k => k + '=' + params[k]).join('&') + secret;
@@ -556,8 +583,8 @@ function contarImagenesImgbb() {
     total += n;
   });
   Logger.log('Total: ' + total + ' celdas, ' + Object.keys(unicas).length + ' fotos distintas.');
-  cloudinaryCfg();   // avisa ya si faltan las propiedades
-  Logger.log('Credenciales de Cloudinary: configuradas.');
+  const pistas = probarCloudinary(cloudinaryCfg());
+  Logger.log('Credenciales de Cloudinary: correctas (' + pistas + ').');
 }
 
 // Pasa las fotos de ImgBB a Cloudinary y cambia los enlaces en todas las
@@ -565,6 +592,7 @@ function contarImagenesImgbb() {
 // registro y hay que volver a ejecutarla (sigue donde quedo).
 function migrarImagenesACloudinary() {
   const cfg    = cloudinaryCfg();
+  probarCloudinary(cfg);   // si la clave esta mal, se corta aqui sin tocar nada
   const inicio = Date.now();
   const LIMITE = 4.5 * 60 * 1000;
   const LOTE   = 8;
