@@ -12,14 +12,14 @@
 <meta property="og:site_name" content="Gaby's Fashion">
 <meta property="og:title" content="Gaby's Fashion — Moda, elegancia & estilo personal">
 <meta property="og:description" content="Ropa, accesorios y más en Honduras. Explorá nuestro catálogo y escribinos por WhatsApp. Lun–Sáb 9am–7pm.">
-<meta property="og:image" content="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
+<meta property="og:image" content="https://res.cloudinary.com/nk1cbbe2/image/upload/c_limit,w_1200,q_auto/gabys/imgbb/JRFYK77G_PHOTO-2026-05-25-15-58-59.jpg">
 <meta property="og:image:alt" content="Gaby's Fashion">
 <meta property="og:url" content="https://light-relic-496921-n3.web.app/">
 <meta property="og:locale" content="es_HN">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Gaby's Fashion — Moda, elegancia & estilo personal">
 <meta name="twitter:description" content="Ropa, accesorios y más en Honduras. Explorá nuestro catálogo y escribinos por WhatsApp.">
-<meta name="twitter:image" content="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
+<meta name="twitter:image" content="https://res.cloudinary.com/nk1cbbe2/image/upload/c_limit,w_1200,q_auto/gabys/imgbb/JRFYK77G_PHOTO-2026-05-25-15-58-59.jpg">
 <meta name="theme-color" content="#0E0E0E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,8 +27,8 @@
 <link rel="dns-prefetch" href="https://i.ibb.co">
 <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230E0E0E'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-family='Georgia,serif' font-size='44' font-style='italic' fill='%23C9A84C'%3EG%3C/text%3E%3C/svg%3E">
-<link rel="icon" type="image/jpeg" href="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
-<link rel="apple-touch-icon" href="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
+<link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/nk1cbbe2/image/upload/c_fill,w_192,h_192,q_auto/gabys/imgbb/JRFYK77G_PHOTO-2026-05-25-15-58-59.jpg">
+<link rel="apple-touch-icon" href="https://res.cloudinary.com/nk1cbbe2/image/upload/c_fill,w_192,h_192,q_auto/gabys/imgbb/JRFYK77G_PHOTO-2026-05-25-15-58-59.jpg">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1518,6 +1518,22 @@ const lazyObserver = new IntersectionObserver((entries) => {
   });
 }, { rootMargin: '200px' });
 
+// Foto que no carga (p. ej. ImgBB caído): en vez del cuadro roto se muestra
+// el emoji del producto. "error" no burbujea, por eso se escucha en captura.
+document.addEventListener('error', e => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  const box = img.closest('.product-img');
+  if (!box) return;
+  box.querySelectorAll('img').forEach(i => i.remove());
+  if (!box.querySelector('.emoji-fallback')) {
+    const span = document.createElement('span');
+    span.className = 'emoji-fallback';
+    span.textContent = box.dataset.emoji || '🛍️';
+    box.prepend(span);
+  }
+}, true);
+
 function observeLazyImages() {
   document.querySelectorAll('img.lazy[data-src]').forEach(img => lazyObserver.observe(img));
 }
@@ -1546,7 +1562,7 @@ function makeCardHTML(p) {
     ? `<img class="img-bg lazy" data-src="${fotoOptimizada(p.imagen, 160)}" alt="" aria-hidden="true" decoding="async"><img class="img-main lazy" data-src="${fotoOptimizada(p.imagen, 700)}" alt="${p.nombre}" decoding="async">`
     : `<span class="emoji-fallback">${p.emoji || '🛍️'}</span>`;
   return `<div class="product-card">
-    <div class="product-img">${imgHTML}${badge}${liqBadge}</div>
+    <div class="product-img" data-emoji="${p.emoji || '🛍️'}">${imgHTML}${badge}${liqBadge}</div>
     <div class="product-info">
       <p class="product-category">${p.categoria || ''}${p.liquidacion ? '<span class="liq-ribbon">Descuento</span>' : ''}</p>
       <p class="product-name">${p.nombre}</p>

@@ -1,8 +1,9 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v8
+//  Gaby's Fashion — Google Apps Script v8.6
 //  Cambios vs v7:
 //    - Limpieza de productos repetidos (limpiarProductosDuplicados)
-//    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
+//    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary,
+//      activarMigracionAutomatica)
 //  Cambios de v7 (vs v6):
 //    - Corregida la llave faltante en out() (rompia el archivo)
 //    - handleProductos: escritura por lotes (2 llamadas en vez de ~40 000)
@@ -482,6 +483,33 @@ function cloudinaryCfg() {
   return cfg;
 }
 
+// Prueba real de las credenciales (no sube nada). Lanza un error que dice
+// que revisar, sin mostrar el secret.
+function probarCloudinary(cfg) {
+  const pistas = 'API Key termina en ...' + cfg.key.slice(-4) +
+                 ', API Secret tiene ' + cfg.secret.length + ' caracteres (normalmente 27)';
+  if (/\*/.test(cfg.secret)) {
+    throw new Error('El API Secret tiene asteriscos: se copio oculto. En Cloudinary toca el ojito para verlo y copialo de nuevo. (' + pistas + ')');
+  }
+  if (cfg.secret === cfg.key) {
+    throw new Error('CLOUDINARY_SECRET tiene el mismo valor que CLOUDINARY_KEY. (' + pistas + ')');
+  }
+  const res = UrlFetchApp.fetch('https://api.cloudinary.com/v1_1/' + cfg.cloud + '/usage', {
+    headers: { Authorization: 'Basic ' + Utilities.base64Encode(cfg.key + ':' + cfg.secret) },
+    muteHttpExceptions: true
+  });
+  const code = res.getResponseCode();
+  if (code === 200) return pistas;
+  if (code === 401) {
+    throw new Error('Cloudinary rechazo la API Key o el API Secret. Revisa que sean de la MISMA fila en ' +
+      'Settings > API Keys (si generaste una clave nueva, cambia tambien CLOUDINARY_KEY). (' + pistas + ')');
+  }
+  if (code === 404) {
+    throw new Error('No existe la cuenta "' + cfg.cloud + '": revisa CLOUDINARY_CLOUD (Cloud name del Dashboard).');
+  }
+  throw new Error('Cloudinary respondio ' + code + ': ' + res.getContentText().slice(0, 200));
+}
+
 // Firma de Cloudinary: parametros ordenados "a=1&b=2" + secreto, en SHA-1
 function firmaCloudinary(params, secret) {
   const texto = Object.keys(params).sort().map(k => k + '=' + params[k]).join('&') + secret;
@@ -492,7 +520,10 @@ function firmaCloudinary(params, secret) {
 // Arma el pedido de subida. file: un enlace (Cloudinary lo descarga) o un
 // data URI "data:image/jpeg;base64,...".
 function pedidoCloudinary(cfg, file, opciones) {
-  const params = Object.assign({ timestamp: Math.floor(Date.now() / 1000) }, opciones);
+  // Todo como texto: si timestamp va como numero, UrlFetchApp lo manda como
+  // "1.790473123E9", no coincide con lo firmado y Cloudinary da 401.
+  const params = Object.assign({ timestamp: String(Math.floor(Date.now() / 1000)) }, opciones);
+  Object.keys(params).forEach(k => { params[k] = String(params[k]); });
   return {
     url: 'https://api.cloudinary.com/v1_1/' + cfg.cloud + '/image/upload',
     method: 'post',
@@ -541,6 +572,34 @@ function idCloudinaryDe(url) {
   return CLD_MIGRADAS + '/' + limpio;
 }
 
+// Descarga fotos de ImgBB desde Apps Script. Devuelve por cada una
+// { datos: 'data:image/...;base64,...' } o { motivo: 'por que fallo' }.
+function bajarDeImgbb(urls) {
+  const opciones = {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+      'Referer': 'https://imgbb.com/'
+    }
+  };
+  let resp;
+  try {
+    resp = UrlFetchApp.fetchAll(urls.map(u => Object.assign({ url: u }, opciones)));
+  } catch (e) {
+    // fetchAll falla entero si una sola no conecta: se prueban de a una
+    resp = urls.map(u => { try { return UrlFetchApp.fetch(u, opciones); } catch (err) { return err; } });
+  }
+  return resp.map(r => {
+    if (r instanceof Error) return { motivo: r.message };
+    if (r.getResponseCode() !== 200) return { motivo: 'HTTP ' + r.getResponseCode() };
+    const blob = r.getBlob();
+    const tipo = blob.getContentType() || '';
+    if (!/^image\//.test(tipo)) return { motivo: 'no es imagen (' + tipo + ')' };
+    return { datos: 'data:' + tipo + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
+  });
+}
+
 // Prueba: solo cuenta cuantas fotos de ImgBB hay en cada hoja. No sube nada.
 function contarImagenesImgbb() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
@@ -556,8 +615,8 @@ function contarImagenesImgbb() {
     total += n;
   });
   Logger.log('Total: ' + total + ' celdas, ' + Object.keys(unicas).length + ' fotos distintas.');
-  cloudinaryCfg();   // avisa ya si faltan las propiedades
-  Logger.log('Credenciales de Cloudinary: configuradas.');
+  const pistas = probarCloudinary(cloudinaryCfg());
+  Logger.log('Credenciales de Cloudinary: correctas (' + pistas + ').');
 }
 
 // Pasa las fotos de ImgBB a Cloudinary y cambia los enlaces en todas las
@@ -565,9 +624,13 @@ function contarImagenesImgbb() {
 // registro y hay que volver a ejecutarla (sigue donde quedo).
 function migrarImagenesACloudinary() {
   const cfg    = cloudinaryCfg();
+  probarCloudinary(cfg);   // si la clave esta mal, se corta aqui sin tocar nada
   const inicio = Date.now();
-  const LIMITE = 4.5 * 60 * 1000;
-  const LOTE   = 8;
+  // Apps Script corta a los 6 min y si ImgBB no responde cada pedido puede
+  // tardar hasta 1 min: se deja de subir a los 3.5 min para alcanzar a
+  // guardar los enlaces en la hoja.
+  const LIMITE = 3.5 * 60 * 1000;
+  const LOTE   = 4;   // ImgBB corta si se le piden muchas a la vez
   const ss     = SpreadsheetApp.openById(SHEET_ID);
 
   const hojas = ss.getSheets().filter(sh => sh.getName() !== 'ProductosEliminados' && sh.getLastRow() > 0);
@@ -579,20 +642,41 @@ function migrarImagenesACloudinary() {
   const urls = Object.keys(pendientes);
   Logger.log('Fotos de ImgBB por pasar: ' + urls.length);
 
-  // 1) Subir en lotes paralelos
+  // 1) Subir en lotes paralelos chicos, con pausa entre lotes
   const nuevas = {};
-  const fallas = [];
-  let i = 0;
-  for (; i < urls.length && Date.now() - inicio < LIMITE; i += LOTE) {
-    const lote = urls.slice(i, i + LOTE);
-    const pedidos = lote.map(u => pedidoCloudinary(cfg, u, { public_id: idCloudinaryDe(u), overwrite: 'false' }));
-    const resp = UrlFetchApp.fetchAll(pedidos);
-    resp.forEach((r, k) => {
-      try { nuevas[lote[k]] = leerRespuestaCloudinary(r); }
-      catch (err) { fallas.push(lote[k] + ' -> ' + err.message); }
-    });
+  const error  = {};   // url -> mensaje del ultimo intento
+  const subir = lista => {
+    let i = 0;
+    for (; i < lista.length && Date.now() - inicio < LIMITE; i += LOTE) {
+      const lote = lista.slice(i, i + LOTE);
+      // Primero se baja la foto desde Google (ImgBB le corta la conexion a
+      // Cloudinary); si no se pudo, se le pasa el enlace a Cloudinary.
+      const bajadas = bajarDeImgbb(lote);
+      const pedidos = lote.map((u, k) => pedidoCloudinary(cfg, bajadas[k].datos || u,
+                                           { public_id: idCloudinaryDe(u), overwrite: 'false' }));
+      UrlFetchApp.fetchAll(pedidos).forEach((r, k) => {
+        try { nuevas[lote[k]] = leerRespuestaCloudinary(r); delete error[lote[k]]; }
+        catch (err) {
+          error[lote[k]] = bajadas[k].datos ? err.message
+                         : err.message + ' (descarga directa: ' + bajadas[k].motivo + ')';
+        }
+      });
+      Utilities.sleep(300);
+      if ((i / LOTE) % 5 === 4) {
+        Logger.log('  ... ' + Math.min(i + LOTE, lista.length) + ' de ' + lista.length +
+                   ' intentadas (' + Object.keys(nuevas).length + ' subidas, ' +
+                   Math.round((Date.now() - inicio) / 1000) + ' s)');
+      }
+    }
+    return lista.slice(i);   // las que no se alcanzaron a intentar
+  };
+  let sinIntentar = subir(urls).length;
+  // Segundo intento de las que fallaron (ImgBB responde a ratos)
+  if (!sinIntentar && Object.keys(error).length) {
+    Utilities.sleep(3000);
+    sinIntentar = subir(Object.keys(error)).length;
   }
-  const sinIntentar = Math.max(urls.length - i, 0);
+  const fallas = Object.keys(error).map(u => u + ' -> ' + error[u]);
 
   // 2) Cambiar los enlaces en las hojas. Por columna: si la columna no tiene
   //    formulas se escribe entera de una vez; si tiene, celda por celda.
@@ -630,11 +714,82 @@ function migrarImagenesACloudinary() {
   Logger.log('Subidas a Cloudinary: ' + Object.keys(nuevas).length + ' | enlaces cambiados en la hoja: ' + cambiadas);
   if (nuevas[LOGO_IMGBB]) Logger.log('Logo: ' + nuevas[LOGO_IMGBB]);
   if (fallas.length) {
-    Logger.log('No se pudieron pasar ' + fallas.length + ' (se quedan con el enlace de ImgBB):');
-    fallas.slice(0, 30).forEach(f => Logger.log('  ' + f));
+    Logger.log('No se pudieron pasar ' + fallas.length + ' (se quedan con el enlace de ImgBB).');
+    // Resumen por tipo de error, sin la URL (en el registro las lineas largas se cortan)
+    const tipos = {};
+    Object.keys(error).forEach(u => {
+      const t = error[u].split(u).join('').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim();
+      tipos[t] = (tipos[t] || 0) + 1;
+    });
+    Object.keys(tipos).sort((a, b) => tipos[b] - tipos[a]).forEach(t => Logger.log('  ' + tipos[t] + ' x ' + t));
+    Logger.log('Ejemplos:');
+    fallas.slice(0, 5).forEach(f => Logger.log('  ' + f));
+    Logger.log('Si el error es 404 / not found, esa foto ya no existe en ImgBB y hay que subirla de nuevo desde el panel. ' +
+               'Si es 5xx / timeout, ImgBB no respondio: vuelve a ejecutar mas tarde.');
   }
   if (sinIntentar) Logger.log('Faltan ' + sinIntentar + ' fotos por tiempo: ejecuta de nuevo migrarImagenesACloudinary.');
   else if (!fallas.length) Logger.log('Listo: todas las fotos estan en Cloudinary.');
+
+  // 404 = la foto ya no existe en ImgBB: reintentar no sirve
+  const perdidas = Object.keys(error).filter(u => /HTTP 404|returned 404|not found/i.test(error[u])).length;
+  return { pendientes: fallas.length + sinIntentar, perdidas: perdidas };
+}
+
+// ── REINTENTO AUTOMATICO ─────────────────────────────────────
+//  Mientras ImgBB este caido, correr una vez activarMigracionAutomatica():
+//  cada 2 horas se intenta pasar lo que falte y se apaga sola cuando ya no
+//  queda nada que se pueda pasar (o a los 14 dias).
+//  Cada 2 h y no cada hora: Apps Script gratis da ~90 min de activadores al dia.
+
+function activarMigracionAutomatica() {
+  cloudinaryCfg();
+  desactivarMigracionAutomatica();
+  PropertiesService.getScriptProperties().setProperty('migracion_desde', String(Date.now()));
+  ScriptApp.newTrigger('migracionAutomatica').timeBased().everyHours(2).create();
+  Logger.log('Activado: cada 2 horas se intentan pasar las fotos que falten. ' +
+             'Se apaga sola al terminar. El resultado de cada vuelta esta en Ejecuciones (menu de la izquierda).');
+}
+
+function desactivarMigracionAutomatica() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'migracionAutomatica')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+}
+
+function migracionAutomatica() {
+  const desde = Number(PropertiesService.getScriptProperties().getProperty('migracion_desde') || Date.now());
+  if (Date.now() - desde > 14 * 24 * 3600 * 1000) {
+    Logger.log('Pasaron 14 dias: se apaga el reintento automatico.');
+    desactivarMigracionAutomatica();
+    return;
+  }
+
+  // Prueba barata antes de la vuelta completa: si ImgBB no entrega ni una
+  // de 3 fotos, sigue caido y no vale la pena gastar la cuota.
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const muestra = [];
+  ss.getSheets().forEach(sh => {
+    if (sh.getName() === 'ProductosEliminados' || sh.getLastRow() === 0 || muestra.length >= 3) return;
+    sh.getDataRange().getValues().forEach(f => f.forEach(v => {
+      if (muestra.length < 3 && esImgbbDirecto(v) && muestra.indexOf(String(v).trim()) < 0) muestra.push(String(v).trim());
+    }));
+  });
+  if (!muestra.length) {
+    Logger.log('No quedan fotos en ImgBB. Se apaga el reintento automatico.');
+    desactivarMigracionAutomatica();
+    return;
+  }
+  if (!bajarDeImgbb(muestra).some(b => b.datos)) {
+    Logger.log('ImgBB sigue sin responder (' + bajarDeImgbb(muestra.slice(0, 1))[0].motivo + '). Se reintenta en 2 horas.');
+    return;
+  }
+
+  const r = migrarImagenesACloudinary();
+  if (r.pendientes === 0 || r.pendientes === r.perdidas) {
+    Logger.log('Ya no queda nada que se pueda pasar' + (r.perdidas ? ' (' + r.perdidas + ' ya no existen en ImgBB)' : '') +
+               '. Se apaga el reintento automatico.');
+    desactivarMigracionAutomatica();
+  }
 }
 
 // ── VENTAS ───────────────────────────────────────────────────
