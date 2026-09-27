@@ -1,8 +1,9 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v8.5
+//  Gaby's Fashion — Google Apps Script v8.6
 //  Cambios vs v7:
 //    - Limpieza de productos repetidos (limpiarProductosDuplicados)
-//    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
+//    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary,
+//      activarMigracionAutomatica)
 //  Cambios de v7 (vs v6):
 //    - Corregida la llave faltante en out() (rompia el archivo)
 //    - handleProductos: escritura por lotes (2 llamadas en vez de ~40 000)
@@ -728,6 +729,67 @@ function migrarImagenesACloudinary() {
   }
   if (sinIntentar) Logger.log('Faltan ' + sinIntentar + ' fotos por tiempo: ejecuta de nuevo migrarImagenesACloudinary.');
   else if (!fallas.length) Logger.log('Listo: todas las fotos estan en Cloudinary.');
+
+  // 404 = la foto ya no existe en ImgBB: reintentar no sirve
+  const perdidas = Object.keys(error).filter(u => /HTTP 404|returned 404|not found/i.test(error[u])).length;
+  return { pendientes: fallas.length + sinIntentar, perdidas: perdidas };
+}
+
+// ── REINTENTO AUTOMATICO ─────────────────────────────────────
+//  Mientras ImgBB este caido, correr una vez activarMigracionAutomatica():
+//  cada 2 horas se intenta pasar lo que falte y se apaga sola cuando ya no
+//  queda nada que se pueda pasar (o a los 14 dias).
+//  Cada 2 h y no cada hora: Apps Script gratis da ~90 min de activadores al dia.
+
+function activarMigracionAutomatica() {
+  cloudinaryCfg();
+  desactivarMigracionAutomatica();
+  PropertiesService.getScriptProperties().setProperty('migracion_desde', String(Date.now()));
+  ScriptApp.newTrigger('migracionAutomatica').timeBased().everyHours(2).create();
+  Logger.log('Activado: cada 2 horas se intentan pasar las fotos que falten. ' +
+             'Se apaga sola al terminar. El resultado de cada vuelta esta en Ejecuciones (menu de la izquierda).');
+}
+
+function desactivarMigracionAutomatica() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'migracionAutomatica')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+}
+
+function migracionAutomatica() {
+  const desde = Number(PropertiesService.getScriptProperties().getProperty('migracion_desde') || Date.now());
+  if (Date.now() - desde > 14 * 24 * 3600 * 1000) {
+    Logger.log('Pasaron 14 dias: se apaga el reintento automatico.');
+    desactivarMigracionAutomatica();
+    return;
+  }
+
+  // Prueba barata antes de la vuelta completa: si ImgBB no entrega ni una
+  // de 3 fotos, sigue caido y no vale la pena gastar la cuota.
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const muestra = [];
+  ss.getSheets().forEach(sh => {
+    if (sh.getName() === 'ProductosEliminados' || sh.getLastRow() === 0 || muestra.length >= 3) return;
+    sh.getDataRange().getValues().forEach(f => f.forEach(v => {
+      if (muestra.length < 3 && esImgbbDirecto(v) && muestra.indexOf(String(v).trim()) < 0) muestra.push(String(v).trim());
+    }));
+  });
+  if (!muestra.length) {
+    Logger.log('No quedan fotos en ImgBB. Se apaga el reintento automatico.');
+    desactivarMigracionAutomatica();
+    return;
+  }
+  if (!bajarDeImgbb(muestra).some(b => b.datos)) {
+    Logger.log('ImgBB sigue sin responder (' + bajarDeImgbb(muestra.slice(0, 1))[0].motivo + '). Se reintenta en 2 horas.');
+    return;
+  }
+
+  const r = migrarImagenesACloudinary();
+  if (r.pendientes === 0 || r.pendientes === r.perdidas) {
+    Logger.log('Ya no queda nada que se pueda pasar' + (r.perdidas ? ' (' + r.perdidas + ' ya no existen en ImgBB)' : '') +
+               '. Se apaga el reintento automatico.');
+    desactivarMigracionAutomatica();
+  }
 }
 
 // ── VENTAS ───────────────────────────────────────────────────

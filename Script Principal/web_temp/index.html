@@ -1518,6 +1518,22 @@ const lazyObserver = new IntersectionObserver((entries) => {
   });
 }, { rootMargin: '200px' });
 
+// Foto que no carga (p. ej. ImgBB caído): en vez del cuadro roto se muestra
+// el emoji del producto. "error" no burbujea, por eso se escucha en captura.
+document.addEventListener('error', e => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  const box = img.closest('.product-img');
+  if (!box) return;
+  box.querySelectorAll('img').forEach(i => i.remove());
+  if (!box.querySelector('.emoji-fallback')) {
+    const span = document.createElement('span');
+    span.className = 'emoji-fallback';
+    span.textContent = box.dataset.emoji || '🛍️';
+    box.prepend(span);
+  }
+}, true);
+
 function observeLazyImages() {
   document.querySelectorAll('img.lazy[data-src]').forEach(img => lazyObserver.observe(img));
 }
@@ -1546,7 +1562,7 @@ function makeCardHTML(p) {
     ? `<img class="img-bg lazy" data-src="${fotoOptimizada(p.imagen, 160)}" alt="" aria-hidden="true" decoding="async"><img class="img-main lazy" data-src="${fotoOptimizada(p.imagen, 700)}" alt="${p.nombre}" decoding="async">`
     : `<span class="emoji-fallback">${p.emoji || '🛍️'}</span>`;
   return `<div class="product-card">
-    <div class="product-img">${imgHTML}${badge}${liqBadge}</div>
+    <div class="product-img" data-emoji="${p.emoji || '🛍️'}">${imgHTML}${badge}${liqBadge}</div>
     <div class="product-info">
       <p class="product-category">${p.categoria || ''}${p.liquidacion ? '<span class="liq-ribbon">Descuento</span>' : ''}</p>
       <p class="product-name">${p.nombre}</p>
