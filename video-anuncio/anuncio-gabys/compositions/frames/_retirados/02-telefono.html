@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Montserrat:wght@300;400;500&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="compositions/frames/_escena.css">
+  </head>
+  <body>
+    <div id="root" data-composition-id="frame-02" data-start="0" data-duration="4.2"
+         data-width="1080" data-height="1920">
+
+      <div id="escena-telefono" class="clip" data-start="0" data-duration="4.2" data-track-index="0"
+           style="position:absolute;inset:0;">
+
+        <!-- el titulo llega del Frame 1 en su posicion exacta y sube -->
+        <div id="marca" style="position:absolute;left:0;right:0;top:420px;text-align:center;">
+          <div class="serif" style="font-size:150px;line-height:1.02;color:#F0EAD6;">Gaby's</div>
+          <div class="serif" style="font-size:150px;line-height:1.02;color:#C9A84C;font-style:italic;">Fashion</div>
+        </div>
+
+        <div class="escenario">
+          <div id="sombra" class="sombra"></div>
+          <div id="flotador" class="flotador">
+            <div id="aparato" class="aparato">
+              <div class="cuerpo">
+                <div class="pantalla">
+                  <img src="assets/pantallas/hero.png" alt="">
+                </div>
+                <div class="vidrio"></div>
+                <div class="isla"></div>
+                <div class="boton izq-1"></div>
+                <div class="boton izq-2"></div>
+                <div class="boton izq-3"></div>
+                <div class="boton der-1"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="apoyo" class="apoyo">Tu tienda, ahora en linea</div>
+
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["frame-02"] = tl;
+
+      // ── estados iniciales ──────────────────────────────────
+      gsap.set("#marca", { y: 0, scale: 1, transformOrigin: "50% 50%" });
+      gsap.set("#aparato", { y: 760, rotateX: 14, scale: 0.93, opacity: 0 });
+      gsap.set("#sombra", { opacity: 0, scaleX: 0.7 });
+      gsap.set("#apoyo", { opacity: 0, y: 16 });
+
+      // ── el titulo cede el centro ───────────────────────────
+      tl.to("#marca", { y: -350, scale: 0.70, duration: 0.74, ease: "power2.inOut" }, 0);
+
+      // ── entrada del aparato: envolvente del componente ─────
+      // 0.22s de aparicion + 0.72s de subida (power3.out) + 0.18s de asentado
+      tl.to("#aparato", { opacity: 1, duration: 0.15, ease: "none" }, 0.42);
+      tl.to("#aparato", {
+        y: -26, rotateX: -1.5, scale: 1.005, duration: 0.5, ease: "power3.out"
+      }, 0.55);
+      tl.to("#aparato", {
+        y: 0, rotateX: 0, scale: 1, duration: 0.13, ease: "power2.inOut"
+      }, 1.05);
+
+      // la sombra entra con el aparato: lo ancla al espacio
+      tl.to("#sombra", { opacity: 1, scaleX: 1, duration: 0.63, ease: "power2.out" }, 0.55);
+
+      // ── FLOTACION EN EL ESPACIO ───────────────────────────
+      // Tres ciclos de periodos distintos (4.2s, 5.6s, 5.5s) que nunca
+      // coinciden: el movimiento no se lee repetido ni mecanico.
+      // Van en capas separadas (.flotador vs .aparato) para no pisarse.
+      tl.to("#flotador", { y: -18, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.55);
+      tl.to("#flotador", { rotateZ: 0.7, duration: 2.8, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.55);
+      tl.to("#aparato",  { rotateY: 4.5, duration: 2.75, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.70);
+      // la sombra responde a la altura: se contrae cuando el telefono sube
+      tl.to("#sombra", {
+        scaleX: 0.9, opacity: 0.72, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1
+      }, 1.55);
+
+      // ── apoyo ──────────────────────────────────────────────
+      tl.to("#apoyo", { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 3.08);
+    </script>
+  </body>
+</html>

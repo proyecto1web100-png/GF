@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "preferences": {
+    "destination": {
+      "value": "reels-tiktok-estados",
+      "confirmed_in": [
+        "anuncio-gabys"
+      ],
+      "updated_at": "2026-09-15T15:26:38.195Z"
+    },
+    "aspect": {
+      "value": "1080x1920",
+      "confirmed_in": [
+        "anuncio-gabys"
+      ],
+      "updated_at": "2026-09-15T15:26:38.280Z"
+    },
+    "language": {
+      "value": "es",
+      "confirmed_in": [
+        "anuncio-gabys"
+      ],
+      "updated_at": "2026-09-15T15:26:38.388Z"
+    },
+    "flow": {
+      "value": "automation",
+      "confirmed_in": [
+        "anuncio-gabys"
+      ],
+      "updated_at": "2026-09-15T15:26:38.485Z"
+    },
+    "storyboard": {
+      "value": "yes",
+      "confirmed_in": [
+        "anuncio-gabys"
+      ],
+      "updated_at": "2026-09-15T15:26:38.580Z"
+    },
+    "style_preset.product-launch-video": {
+      "value": "broadside",
+      "confirmed_in": [
+        "anuncio-gabys"
+      ],
+      "updated_at": "2026-09-15T19:04:56.740Z"
+    }
+  },
+  "sightings": {}
+}

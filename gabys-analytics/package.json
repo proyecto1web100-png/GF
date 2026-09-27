@@ -1,0 +1,15 @@
+{
+  "name": "gabys-analytics",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Analitica local de Gaby's Fashion sobre Microsoft Dynamics RMS",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "express": "^5.1.0"
+  }
+}

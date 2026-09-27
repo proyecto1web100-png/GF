@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Montserrat:wght@300;400;500&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="compositions/frames/_escena.css">
+  </head>
+  <body>
+    <!-- ============================================================
+         UN SOLO PLANO CONTINUO.
+         Antes cada seccion era un cuadro aparte y el telefono nacia de
+         nuevo en cada uno: al encadenar, la flotacion arrancaba desde
+         cero y se veia un tiron hacia abajo. Aqui el aparato entra una
+         vez, flota sin cortes durante los cuatro segmentos y se va al
+         final. La pantalla es lo unico que cambia.
+         ============================================================ -->
+    <div id="root" data-composition-id="frame-demo" data-start="0" data-duration="39"
+         data-width="1080" data-height="1920">
+
+      <div id="escena" class="clip" data-start="0" data-duration="39" data-track-index="0"
+           style="position:absolute;inset:0;">
+
+        <!-- fondo vivo -->
+        <div id="brillo" class="brillo"></div>
+        <div id="reticula" class="reticula"></div>
+
+        <!-- barrido entre secciones -->
+        <div id="barrido" class="barrido"></div>
+
+        <!-- telefono -->
+        <div id="plano" class="escenario">
+          <div id="sombra" class="sombra"></div>
+          <div id="flotador" class="flotador">
+            <div id="giro" class="aparato">
+            <div id="aparato" class="aparato">
+
+              <div class="cara">
+                <div class="cuerpo">
+                  <div class="pantalla">
+                    <!-- Video real del sitio, grabado con .claude/grabar.mjs.
+                         Cada uno vive su propia ventana de tiempo y se
+                         solapan 0.4s para el encadenado. -->
+                    <video id="v-catalogo" class="clip" muted playsinline
+                           data-start="1.0"  data-duration="5.2"
+                           src="assets/clips/catalogo.mp4"></video>
+                    <video id="v-carrito" class="clip" muted playsinline
+                           data-start="5.9"  data-duration="6.0"
+                           src="assets/clips/carrito.mp4"></video>
+                    <video id="v-cuenta" class="clip" muted playsinline
+                           data-start="11.9" data-duration="19.4"
+                           src="assets/clips/cuenta.mp4"></video>
+                    <video id="v-ofertas" class="clip" muted playsinline
+                           data-start="30.9" data-duration="7.0"
+                           src="assets/clips/ofertas.mp4"></video>
+                  </div>
+                  <div class="vidrio"></div>
+                  <div class="isla"></div>
+                  <div class="boton izq-1"></div>
+                  <div class="boton izq-2"></div>
+                  <div class="boton izq-3"></div>
+                  <div class="boton der-1"></div>
+                </div>
+              </div>
+
+              <!-- espalda: se ve solo durante el giro -->
+              <div class="cara cara-trasera">
+                <div class="trasera-cuerpo">
+                  <div class="camaras">
+                    <div class="lente a"></div>
+                    <div class="lente b"></div>
+                    <div class="lente c"></div>
+                    <div class="flash"></div>
+                    <div class="lidar"></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- rotulos de seccion -->
+        <div id="s1" class="seccion" data-layout-allow-overlap><div class="num" aria-hidden="true" data-layout-allow-overlap>01</div><div class="nom" data-layout-allow-overlap>Catalogo</div></div>
+        <div id="s2" class="seccion" data-layout-allow-overlap><div class="num" aria-hidden="true" data-layout-allow-overlap>02</div><div class="nom" data-layout-allow-overlap>Carrito</div></div>
+        <div id="s3" class="seccion" data-layout-allow-overlap><div class="num" aria-hidden="true" data-layout-allow-overlap>03</div><div class="nom" data-layout-allow-overlap style="position:relative;height:38px;">
+          <span id="n3a" style="position:absolute;left:0;right:0;">Tu cuenta</span>
+          <span id="n3b" style="position:absolute;left:0;right:0;">Estado de cuenta</span>
+          <span id="n3c" style="position:absolute;left:0;right:0;">Tus compras</span>
+        </div></div>
+        <div id="s4" class="seccion" data-layout-allow-overlap><div class="num" aria-hidden="true" data-layout-allow-overlap>04</div><div class="nom" data-layout-allow-overlap>Ofertas</div></div>
+
+        <!-- fichas: salen del borde del telefono con un hilo que se dibuja -->
+        <div id="h1" class="hilo" style="left:180px;top:672px;width:160px;"></div>
+        <div id="f1" class="ficha" style="left:34px;top:632px;">
+          Todo lo que ves<b>Disponible ya</b>
+        </div>
+
+        <div id="h2" class="hilo der" style="right:180px;top:1232px;width:150px;"></div>
+        <div id="f2" class="ficha" style="right:34px;top:1192px;text-align:right;">
+          Precios<b>Actualizados</b>
+        </div>
+
+        <div id="h3" class="hilo der" style="right:180px;top:702px;width:150px;"></div>
+        <div id="f3" class="ficha" style="right:34px;top:662px;text-align:right;">
+          Un toque<b>Y va al carrito</b>
+        </div>
+
+        <div id="h4" class="hilo" style="left:180px;top:1262px;width:160px;"></div>
+        <div id="f4" class="ficha" style="left:34px;top:1222px;">
+          El pedido sale<b>Por WhatsApp</b>
+        </div>
+
+        <!-- Cifras inventadas a proposito: ningun dato de cliente real. -->
+        <div id="h5" class="hilo" style="left:180px;top:692px;width:160px;"></div>
+        <div id="f5" class="ficha" style="left:34px;top:652px;">
+          Tu cuenta<b>Se crea en un minuto</b>
+        </div>
+
+        <div id="h6" class="hilo der" style="right:180px;top:1252px;width:150px;"></div>
+        <div id="f6" class="ficha" style="right:34px;top:1212px;text-align:right;">
+          Saldo pendiente<b>Siempre a la vista</b>
+        </div>
+
+        <div id="h9" class="hilo" style="left:180px;top:1252px;width:160px;"></div>
+        <div id="f9" class="ficha" style="left:34px;top:1212px;">
+          Tus compras<b>Todo el historial</b>
+        </div>
+
+        <div id="h7" class="hilo der" style="right:180px;top:682px;width:150px;"></div>
+        <div id="f7" class="ficha" style="right:34px;top:642px;text-align:right;">
+          Rebajas<b>Hasta 30% menos</b>
+        </div>
+
+        <div id="h8" class="hilo" style="left:180px;top:1242px;width:160px;"></div>
+        <div id="f8" class="ficha" style="left:34px;top:1202px;">
+          Y ademas<b>Salen en el catalogo</b>
+        </div>
+
+        <!-- riel de avance -->
+        <div id="riel" class="riel">
+          <div class="tramo"><i id="t1"></i></div>
+          <div class="tramo"><i id="t2"></i></div>
+          <div class="tramo"><i id="t3"></i></div>
+          <div class="tramo"><i id="t4"></i></div>
+        </div>
+
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["frame-demo"] = tl;
+
+      const SEC = ["#s1", "#s2", "#s3", "#s4"];
+      const FICHAS = ["#f1", "#f2", "#f3", "#f4", "#f5", "#f6", "#f9", "#f7", "#f8"];
+      const HILOS  = ["#h1", "#h2", "#h3", "#h4", "#h5", "#h6", "#h9", "#h7", "#h8"];
+
+      gsap.set("#plano", { y: 260, opacity: 0, scale: 0.94 });
+      gsap.set("#giro", { rotateY: 0 });
+      gsap.set("#aparato", { rotateX: 0, rotateY: 0, scale: 1 });
+      gsap.set("#sombra", { opacity: 0, scaleX: 0.7 });
+      gsap.set(".cara-trasera", { visibility: "hidden" });
+      gsap.set("#brillo", { opacity: 0, scale: 0.8 });
+      gsap.set("#reticula", { opacity: 0, y: 0 });
+      gsap.set("#barrido", { opacity: 0, scaleX: 0 });
+      gsap.set("#riel", { opacity: 0, y: 14 });
+      gsap.set([".tramo i"], { scaleX: 0 });
+      gsap.set(SEC, { opacity: 0, y: 22 });
+      gsap.set(FICHAS, { opacity: 0, x: 0, scale: 0.94 });
+      gsap.set(HILOS, { scaleX: 0, opacity: 0 });
+      gsap.set(["#v-carrito", "#v-cuenta", "#v-ofertas"], { opacity: 0 });
+
+      // ── ENTRADA (0 - 1.3s) ────────────────────────────────
+      tl.to("#brillo", { opacity: 1, scale: 1, duration: 1.5, ease: "power2.out" }, 0);
+      tl.to("#reticula", { opacity: 1, duration: 1.4, ease: "power1.out" }, 0.1);
+      tl.to("#plano", { y: 0, opacity: 1, scale: 1, duration: 1.25, ease: "power3.out" }, 0.15);
+      tl.to("#sombra", { opacity: 1, scaleX: 1, duration: 1.1, ease: "power2.out" }, 0.3);
+      tl.to("#riel", { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 0.75);
+
+      // ── FLOTACION CONTINUA ────────────────────────────────
+      // Un solo juego de tweens para los 26s: no se reinicia nunca, que era
+      // justo lo que producia el tiron al cambiar de escena.
+      tl.to("#flotador", { y: -20, duration: 2.4, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.3);
+      tl.to("#flotador", { rotateZ: 0.8, duration: 3.1, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.3);
+      tl.to("#aparato",  { rotateY: 5, duration: 3.4, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.45);
+      tl.to("#sombra", { scaleX: 0.9, opacity: 0.7, duration: 2.4, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.3);
+      // la reticula deriva al reves que el aparato: parallaje barato y eficaz
+      tl.to("#reticula", { y: 26, duration: 6.5, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.3);
+
+      // ── utilidades de seccion ─────────────────────────────
+      const seccion = (i, t0, t1) => {
+        tl.to(SEC[i], { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, t0);
+        tl.to(SEC[i], { opacity: 0, y: -18, duration: 0.45, ease: "power2.in" }, t1);
+        tl.to(`#t${i + 1}`, { scaleX: 1, duration: t1 - t0, ease: "none" }, t0);
+      };
+      const barrer = (t0) => {
+        tl.fromTo("#barrido",
+          { opacity: 0, scaleX: 0 },
+          { opacity: 1, scaleX: 1, duration: 0.28, ease: "power2.out" }, t0);
+        tl.to("#barrido", { opacity: 0, duration: 0.3, ease: "power2.in" }, t0 + 0.3);
+      };
+      // la ficha entra detras de su hilo: primero la linea, luego el dato
+      const ficha = (i, t0, dur, desde) => {
+        tl.fromTo(HILOS[i], { scaleX: 0, opacity: 1 },
+          { scaleX: 1, duration: 0.32, ease: "power2.out" }, t0);
+        tl.fromTo(FICHAS[i], { opacity: 0, x: desde, scale: 0.94 },
+          { opacity: 1, x: 0, scale: 1, duration: 0.5, ease: "power3.out" }, t0 + 0.2);
+        tl.to(FICHAS[i], { opacity: 0, x: desde * 0.5, duration: 0.4, ease: "power2.in" }, t0 + dur);
+        tl.to(HILOS[i], { opacity: 0, duration: 0.3, ease: "power2.in" }, t0 + dur);
+      };
+      // cambio de pantalla: encadenado corto entre dos clips
+      const pasar = (saliente, entrante, t0) => {
+        tl.to(entrante, { opacity: 1, duration: 0.4, ease: "power1.inOut" }, t0);
+        tl.to(saliente, { opacity: 0, duration: 0.4, ease: "power1.inOut" }, t0);
+      };
+
+      // ── 01 CATALOGO (1.0 - 5.9) ───────────────────────────
+      seccion(0, 0.9, 5.6);
+      ficha(0, 2.1, 2.2, -70);
+      ficha(1, 3.5, 1.9, 70);
+
+      // ── 02 CARRITO (5.9 - 11.9) ───────────────────────────
+      barrer(5.7);
+      pasar("#v-catalogo", "#v-carrito", 5.9);
+      seccion(1, 6.0, 11.6);
+      ficha(2, 7.3, 2.2, 70);
+      ficha(3, 10.0, 1.6, -70);
+
+      // ── 03 TU CUENTA (11.9 - 19.1) ────────────────────────
+      // El giro del aparato es la transicion: la pantalla cambia a los 180
+      // grados, cuando la cara frontal no se ve.
+      barrer(11.7);
+      tl.to("#giro", { rotateY: 360, duration: 0.62, ease: "power2.inOut" }, 11.75);
+      tl.set(".cara-trasera", { visibility: "visible" }, 11.75);
+      tl.set(".cara-trasera", { visibility: "hidden" }, 12.37);
+      tl.set("#v-cuenta", { opacity: 1 }, 12.06);
+      tl.set("#v-carrito", { opacity: 0 }, 12.06);
+      tl.to("#giro", { scale: 0.94, duration: 0.31, ease: "power2.in" }, 11.75);
+      tl.to("#giro", { scale: 1, duration: 0.31, ease: "power2.out" }, 12.06);
+      seccion(2, 12.5, 30.6);
+      // el nombre de la seccion sigue a lo que pasa en la pantalla
+      gsap.set(["#n3b", "#n3c"], { opacity: 0, y: 12 });
+      const rotular = (sale, entra, t0) => {
+        tl.to(sale,  { opacity: 0, y: -12, duration: 0.3, ease: "power2.in" }, t0);
+        tl.to(entra, { opacity: 1, y: 0,   duration: 0.4, ease: "power2.out" }, t0 + 0.28);
+      };
+      rotular("#n3a", "#n3b", 20.6);
+      rotular("#n3b", "#n3c", 26.0);
+      ficha(4, 13.2, 2.6, -70);      // se crea la cuenta
+      ficha(5, 21.0, 2.6, 70);       // estado de cuenta
+      ficha(6, 26.4, 2.6, -70);      // historial de compras
+
+      // ── 04 OFERTAS (19.1 - 26) ────────────────────────────
+      // El telefono NO desaparece: las ofertas son parte de la demostracion
+      // del sitio, no un anuncio de ofertas.
+      barrer(30.7);
+      pasar("#v-cuenta", "#v-ofertas", 30.9);
+      seccion(3, 31.0, 37.6);
+      ficha(7, 32.4, 2.4, 70);
+      ficha(8, 35.0, 2.0, -70);
+
+      // ── SALIDA (24.8 - 26) ────────────────────────────────
+      tl.to("#riel", { opacity: 0, duration: 0.6, ease: "power2.in" }, 37.9);
+      tl.to("#plano", { y: 120, opacity: 0, scale: 0.96, duration: 1.1, ease: "power2.in" }, 38.0);
+      tl.to("#sombra", { opacity: 0, duration: 0.8, ease: "power2.in" }, 38.0);
+      tl.to(["#brillo", "#reticula"], { opacity: 0, duration: 0.9, ease: "power2.in" }, 38.1);
+    </script>
+  </body>
+</html>

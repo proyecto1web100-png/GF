@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        ".claude/servir-web.js"
+      ],
+      "port": 3030
+    },
+    {
+      "name": "analytics",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "gabys-analytics/src/server.js"
+      ],
+      "port": 4000
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+# Configuración de Netlify — Gaby's Fashion
+# Sitio estático (HTML). No requiere build.
+
+[build]
+  publish = "Script Principal/web_temp"
+  command = ""
+
+# Rutas desconocidas -> la tienda. Los archivos existentes se sirven directo,
+# así que el panel (gf-panel-7x9k2m.html) y admin.html siguen accesibles.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cabeceras de seguridad básicas (equivalentes a las meta del sitio)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

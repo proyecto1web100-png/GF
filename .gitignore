@@ -1,0 +1,41 @@
+# ===== SECRETOS - NUNCA SUBIR =====
+config.ps1
+netlify_token.txt
+netlify_site.txt
+*-*.json.key
+light-relic-*.json
+*serviceaccount*.json
+gabys-analytics/config.json
+.netlify/
+
+# ===== Dependencias =====
+node_modules/
+
+# ===== Datos generados / cache =====
+gabys-analytics/cache/
+sync_log.txt
+sync_diario_log.txt
+ultima_sync_diaria.txt
+imagenes_log.txt
+
+# ===== Respaldos y empaquetados =====
+*.bak
+*.zip
+
+# ===== Binarios pesados del proyecto de video =====
+video-anuncio/anuncio-gabys/herramientas/
+video-anuncio/anuncio-gabys/renders/
+video-anuncio/anuncio-gabys/.thumbnails/
+video-anuncio/anuncio-gabys/capture/extracted/
+*.mp4
+*.exe
+
+# ===== Sistema =====
+Thumbs.db
+desktop.ini
+
+# ===== Herramientas de agentes (se reinstalan, no son del proyecto) =====
+.agents/
+.claude/cache-img/
+.claude/settings.local.json
+.claude/skills/

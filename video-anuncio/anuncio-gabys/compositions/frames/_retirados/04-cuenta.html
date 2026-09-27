@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Montserrat:wght@300;400;500&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="compositions/frames/_escena.css">
+  </head>
+  <body>
+    <div id="root" data-composition-id="frame-04" data-start="0" data-duration="7"
+         data-width="1080" data-height="1920">
+
+      <div id="escena-cuenta" class="clip" data-start="0" data-duration="7" data-track-index="0"
+           style="position:absolute;inset:0;">
+
+        <div id="rotulo" class="rotulo">02 &middot; Tu cuenta</div>
+
+        <div class="escenario">
+          <div id="sombra" class="sombra"></div>
+          <div id="flotador" class="flotador">
+            <div id="aparato" class="aparato">
+
+              <!-- CARA FRONTAL -->
+              <div class="cara">
+                <div class="cuerpo">
+                  <div class="pantalla">
+                    <img id="p-carrito" src="assets/pantallas/carrito.png" alt="">
+                    <img id="p-cuenta"  src="assets/pantallas/cuenta.png" alt="">
+                  </div>
+                  <div class="vidrio"></div>
+                  <div class="isla"></div>
+                  <div class="boton izq-1"></div>
+                  <div class="boton izq-2"></div>
+                  <div class="boton izq-3"></div>
+                  <div class="boton der-1"></div>
+                </div>
+              </div>
+
+              <!-- CARA TRASERA: se ve solo al pasar los 90 grados -->
+              <div class="cara cara-trasera">
+                <div class="trasera-cuerpo">
+                  <!-- Modulo de un iPhone 15 Pro: tres lentes en triangulo
+                       (arriba-izquierda, abajo-izquierda, abajo-derecha) y en
+                       el hueco de arriba-derecha el flash y el LiDAR. -->
+                  <div class="camaras">
+                    <div class="lente a"></div>
+                    <div class="lente b"></div>
+                    <div class="lente c"></div>
+                    <div class="flash"></div>
+                    <div class="lidar"></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Tarjetas de resumen: FUERA del telefono a proposito. Dejan claro
+             que son un resumen grafico y no una captura de una pantalla que
+             no existe. Los numeros son inventados. -->
+        <div id="t-saldo" class="tarjeta" style="left:34px;top:548px;width:390px;">
+          Saldo pendiente
+          <b>L. 1,250.00</b>
+        </div>
+        <div id="t-compras" class="tarjeta" style="right:34px;top:1248px;width:390px;text-align:right;">
+          Tus compras
+          <b>3 pedidos</b>
+        </div>
+
+        <div id="apoyo" class="apoyo">Tu saldo y tus compras, siempre a mano</div>
+
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["frame-04"] = tl;
+
+      gsap.set("#aparato", { y: 0, rotateX: 0, rotateY: 0, scale: 1, opacity: 1 });
+      gsap.set("#sombra", { opacity: 1, scaleX: 1 });
+      gsap.set("#rotulo", { opacity: 0, y: -10 });
+      gsap.set("#apoyo", { opacity: 0, y: 16 });
+      gsap.set("#p-cuenta", { opacity: 0 });
+      // La cara trasera solo existe mientras dura el giro. Fuera de esa
+      // ventana estorba: queda tapada por la pantalla y el validador la lee
+      // como texto oculto.
+      gsap.set(".cara-trasera", { visibility: "hidden" });
+      gsap.set(["#t-saldo", "#t-compras"], { opacity: 0, z: -180, filter: "blur(14px)" });
+
+      // ── EL GIRO ───────────────────────────────────────────
+      // Es la transicion, no un adorno. Vuelta completa de 360 grados en
+      // 0.92s: a los 90 aparece la espalda real del aparato (camaras y
+      // logotipo), a los 270 vuelve la cara frontal, y aterriza de frente.
+      // La pantalla se cambia a los 180, cuando la cara frontal no se ve.
+      tl.to("#aparato", { rotateY: 360, duration: 0.64, ease: "power2.inOut" }, 0.21);
+      tl.set("#p-cuenta", { opacity: 1 }, 0.53);
+      tl.set("#p-carrito", { opacity: 0 }, 0.53);
+      tl.set(".cara-trasera", { visibility: "visible" }, 0.21);
+      tl.set(".cara-trasera", { visibility: "hidden" }, 0.85);
+
+      // durante el giro el aparato se aleja y vuelve: eso le da peso
+      tl.to("#flotador", { scale: 0.93, duration: 0.32, ease: "power2.in" }, 0.21);
+      tl.to("#flotador", { scale: 1.0, duration: 0.36, ease: "power2.out" }, 0.53);
+      // la sombra se contrae al alejarse
+      tl.to("#sombra", { scaleX: 0.70, opacity: 0.5, duration: 0.32, ease: "power2.in" }, 0.21);
+      tl.to("#sombra", { scaleX: 1, opacity: 1, duration: 0.36, ease: "power2.out" }, 0.53);
+
+      // ── flotacion, retomada tras el giro ──────────────────
+      tl.to("#flotador", { y: -18, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.35);
+      tl.to("#flotador", { rotateZ: 0.7, duration: 2.8, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.35);
+      tl.to("#aparato",  { rotateY: 364.5, duration: 2.75, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.40);
+      tl.to("#sombra", { scaleX: 0.9, opacity: 0.72, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.35);
+
+      tl.to("#rotulo", { opacity: 1, y: 0, duration: 0.56, ease: "power2.out" }, 0.14);
+
+      // ── las tarjetas salen del aparato hacia el espacio ────
+      tl.to("#t-saldo",   { opacity: 1, z: 0, filter: "blur(0px)", duration: 0.7, ease: "power2.out" }, 1.82);
+      tl.to("#t-compras", { opacity: 1, z: 0, filter: "blur(0px)", duration: 0.7, ease: "power2.out" }, 2.07);
+
+      tl.to("#apoyo", { opacity: 1, y: 0, duration: 0.63, ease: "power2.out" }, 4.48);
+    </script>
+  </body>
+</html>

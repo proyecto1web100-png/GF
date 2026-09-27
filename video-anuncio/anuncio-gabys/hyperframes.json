@@ -1,0 +1,30 @@
+{
+  "$schema": "https://hyperframes.heygen.com/schema/hyperframes.json",
+  "registry": "https://raw.githubusercontent.com/heygen-com/hyperframes/main/registry",
+  "paths": {
+    "blocks": "compositions",
+    "components": "compositions/components",
+    "assets": "assets"
+  },
+  "media": {
+    "autoProxy": true
+  },
+  "authoringSkill": "product-launch-video",
+  "registryItems": [
+    {
+      "name": "device-frame-stage",
+      "type": "hyperframes:component",
+      "target": "compositions/components/device-frame-stage.html"
+    },
+    {
+      "name": "browser-device-stage",
+      "type": "hyperframes:component",
+      "target": "compositions/components/browser-device-stage.html"
+    },
+    {
+      "name": "parallax-device-dive",
+      "type": "hyperframes:component",
+      "target": "compositions/components/parallax-device-dive.html"
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Montserrat:wght@300;400;500&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="compositions/frames/_escena.css">
+    <style>
+      /* ── APERTURA ────────────────────────────────────────────
+         La version anterior era solo el nombre entrando por desenfoque.
+         Aca el nombre sigue siendo el centro, pero llega construido: primero
+         el espacio (resplandor, reticula, marco), despues el sello, despues
+         la tipografia, y al final el brillo que la recorre. */
+
+      /* marco de esquinas: cuatro angulos que se dibujan, como el troquel de
+         una etiqueta. Encuadra sin encerrar. */
+      .angulo { position: absolute; width: 96px; height: 96px; }
+      .angulo span { position: absolute; background: #C9A84C; }
+      .angulo .h { height: 1px; width: 100%; transform-origin: left center; }
+      .angulo .v { width: 1px; height: 100%; transform-origin: top center; }
+      .angulo.si { left: 96px;  top: 150px; }
+      .angulo.sd { right: 96px; top: 150px; }
+      .angulo.ii { left: 96px;  bottom: 150px; }
+      .angulo.id { right: 96px; bottom: 150px; }
+      .angulo.sd .h, .angulo.id .h { right: 0; transform-origin: right center; }
+      .angulo.sd .v, .angulo.id .v { right: 0; }
+      .angulo.ii .h, .angulo.id .h { bottom: 0; }
+      .angulo.ii .v, .angulo.id .v { bottom: 0; transform-origin: bottom center; }
+
+      /* sello: el rombo de la marca dentro de un anillo que se traza */
+      .sello { position: absolute; left: 50%; top: 486px; margin-left: -66px;
+               width: 132px; height: 132px; }
+      .anillo { position: absolute; inset: 0; }
+      .anillo circle { fill: none; stroke: #C9A84C; stroke-width: 1.2; }
+      .rombo {
+        position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+        margin: -13px 0 0 -13px; background: #C9A84C; transform: rotate(45deg);
+      }
+
+      /* motas de luz: polvo dorado suspendido, muy tenue */
+      .mota { position: absolute; width: 4px; height: 4px; border-radius: 50%;
+              background: #C9A84C; }
+
+      /* el nombre entra por debajo de una mascara, linea por linea */
+      .linea { overflow: hidden; }
+      .linea > div { will-change: transform; }
+
+      /* brillo que recorre la tipografia una sola vez */
+      .destello {
+        position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+        background: linear-gradient(105deg,
+          rgba(255,255,255,0) 42%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 58%);
+        mix-blend-mode: overlay; pointer-events: none;
+      }
+
+      .dato { font-size: 26px; letter-spacing: 0.26em; text-transform: uppercase;
+              color: #9A8E7A; font-weight: 300; }
+      .dato b { display: block; margin-top: 10px;
+                font-family: "Cormorant Garamond", Georgia, serif; font-size: 44px;
+                font-weight: 600; color: #C9A84C; letter-spacing: 0.02em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="frame-01" data-start="0" data-duration="5"
+         data-width="1080" data-height="1920">
+
+      <div id="escena-apertura" class="clip" data-start="0" data-duration="5" data-track-index="0"
+           style="position:absolute;inset:0;">
+
+        <!-- espacio -->
+        <div id="brillo" class="brillo"></div>
+        <div id="reticula" class="reticula"></div>
+
+        <!-- marco -->
+        <div class="angulo si" id="a1"><span class="h"></span><span class="v"></span></div>
+        <div class="angulo sd" id="a2"><span class="h"></span><span class="v"></span></div>
+        <div class="angulo ii" id="a3"><span class="h"></span><span class="v"></span></div>
+        <div class="angulo id" id="a4"><span class="h"></span><span class="v"></span></div>
+
+        <!-- polvo dorado -->
+        <div class="mota" id="m1" style="left:214px;top:430px;"></div>
+        <div class="mota" id="m2" style="left:846px;top:560px;"></div>
+        <div class="mota" id="m3" style="left:268px;top:1268px;"></div>
+        <div class="mota" id="m4" style="left:790px;top:1290px;"></div>
+        <div class="mota" id="m5" style="left:540px;top:360px;"></div>
+        <div class="mota" id="m6" style="left:160px;top:880px;"></div>
+        <div class="mota" id="m7" style="left:920px;top:960px;"></div>
+
+        <!-- sello -->
+        <div class="sello">
+          <svg class="anillo" viewBox="0 0 132 132">
+            <circle id="aro" cx="66" cy="66" r="64"></circle>
+          </svg>
+          <div id="rombo" class="rombo"></div>
+        </div>
+
+        <!-- bloque de marca: queda en el MISMO eje que el plano siguiente -->
+        <div id="marca" style="position:absolute;left:0;right:0;top:700px;text-align:center;">
+          <div class="linea"><div id="linea-gabys" class="serif"
+               style="font-size:150px;line-height:1.02;color:#F0EAD6;">Gaby's</div></div>
+          <div class="linea"><div id="linea-fashion" class="serif"
+               style="font-size:150px;line-height:1.02;color:#C9A84C;font-style:italic;">Fashion</div></div>
+          <div id="subrayado"
+               style="width:260px;height:2px;background:#C9A84C;margin:30px auto 0;transform-origin:center;"></div>
+          <div id="destello" class="destello"></div>
+        </div>
+
+        <div id="lema" style="position:absolute;left:0;right:0;top:1120px;text-align:center;
+                    font-size:36px;letter-spacing:0.14em;color:#9A8E7A;font-weight:300;">
+          Moda, elegancia &amp; estilo personal
+        </div>
+
+        <!-- Cifras reales de la tienda. El numero de articulos no va aca: es
+             dato de catalogo, no de apertura. -->
+        <div id="datos" style="position:absolute;left:0;right:0;top:1360px;
+                    display:flex;justify-content:center;gap:150px;">
+          <div class="dato" style="text-align:center;">Anos en el rubro<b id="d-ani">0</b></div>
+          <div class="dato" style="text-align:center;">Entrega<b>Honduras</b></div>
+        </div>
+
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["frame-01"] = tl;
+
+      const MOTAS = ["#m1", "#m2", "#m3", "#m4", "#m5", "#m6", "#m7"];
+      const ANGULOS = ["#a1", "#a2", "#a3", "#a4"];
+
+      // ── estado inicial: pantalla vacia ────────────────────
+      gsap.set("#brillo", { opacity: 0, scale: 0.7 });
+      gsap.set("#reticula", { opacity: 0 });
+      gsap.set(".angulo .h", { scaleX: 0 });
+      gsap.set(".angulo .v", { scaleY: 0 });
+      gsap.set(MOTAS, { opacity: 0, scale: 0.4 });
+      gsap.set("#rombo", { opacity: 0, scale: 0, rotate: 45 });
+      gsap.set(["#linea-gabys", "#linea-fashion"], { yPercent: 118 });
+      gsap.set("#subrayado", { scaleX: 0 });
+      gsap.set("#destello", { opacity: 0, xPercent: -130 });
+      gsap.set("#lema", { opacity: 0, scaleX: 1.14 });
+      gsap.set("#datos", { opacity: 0, y: 18 });
+
+      // El aro se traza sin el plugin DrawSVG (que es de pago): se anima el
+      // guion del trazo a mano, que es exactamente lo que hace por dentro.
+      const aro = document.getElementById("aro");
+      const largo = 2 * Math.PI * 64;
+      gsap.set(aro, { opacity: 1, strokeDasharray: largo, strokeDashoffset: largo });
+
+      // ── 0.0-1.0s · aparece el espacio ─────────────────────
+      tl.to("#brillo", { opacity: 1, scale: 1, duration: 1.6, ease: "power2.out" }, 0);
+      tl.to("#reticula", { opacity: 1, duration: 1.3, ease: "power1.out" }, 0.1);
+      // los cuatro angulos se dibujan a la vez, cada uno desde su esquina
+      tl.to(".angulo .h", { scaleX: 1, duration: 0.7, ease: "power2.inOut" }, 0.25);
+      tl.to(".angulo .v", { scaleY: 1, duration: 0.7, ease: "power2.inOut" }, 0.35);
+
+      // ── 0.5-1.6s · el sello ───────────────────────────────
+      tl.to(aro, { strokeDashoffset: 0, duration: 1.0, ease: "power2.inOut" }, 0.5);
+      tl.to("#rombo", { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2.2)" }, 1.15);
+
+      // ── 1.2-2.4s · el nombre sube desde su mascara ────────
+      tl.to("#linea-gabys",  { yPercent: 0, duration: 0.85, ease: "power3.out" }, 1.25);
+      tl.to("#linea-fashion", { yPercent: 0, duration: 0.85, ease: "power3.out" }, 1.45);
+      tl.to("#subrayado", { scaleX: 1, duration: 0.6, ease: "power2.inOut" }, 2.15);
+
+      // el brillo lo recorre una sola vez, justo despues de asentarse
+      tl.to("#destello", { opacity: 1, duration: 0.12 }, 2.25);
+      tl.to("#destello", { xPercent: 130, duration: 0.85, ease: "power2.inOut" }, 2.25);
+      tl.to("#destello", { opacity: 0, duration: 0.2 }, 2.95);
+
+      // ── polvo suspendido: nunca quieto, nunca protagonista ─
+      MOTAS.forEach((m, i) => {
+        tl.to(m, { opacity: 0.55 - i * 0.04, scale: 1,
+                   duration: 0.9, ease: "power1.out" }, 0.6 + i * 0.09);
+        tl.to(m, { y: (i % 2 ? 26 : -30), duration: 3.4 + i * 0.4,
+                   ease: "sine.inOut", yoyo: true, repeat: -1 }, 1.0);
+      });
+
+      // ── 2.6-3.6s · lema y cifras ──────────────────────────
+      tl.to("#lema", { opacity: 1, scaleX: 1,
+                       duration: 0.9, ease: "power2.out" }, 2.6);
+      tl.to("#datos", { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 3.05);
+
+      const n = { ani: 0 };
+      tl.to(n, {
+        ani: 12, duration: 1.0, ease: "power2.out",
+        onUpdate: () => {
+          document.getElementById("d-ani").textContent = Math.round(n.ani);
+        },
+      }, 3.15);
+
+      // ── 4.4-5.0s · el marco se abre para dejar pasar al plano ─
+      tl.to(ANGULOS, { scale: 1.06, opacity: 0, duration: 0.6, ease: "power2.in" }, 4.4);
+      tl.to("#reticula", { opacity: 0.4, duration: 0.6, ease: "power1.in" }, 4.4);
+    </script>
+  </body>
+</html>

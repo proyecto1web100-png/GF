@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Montserrat:wght@300;400;500&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="compositions/frames/_escena.css">
+    <style>
+      /* Las ofertas a cuadro completo, una vez atravesada la pantalla. */
+      .rejilla {
+        position: absolute; left: 66px; right: 66px; top: 640px;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+      }
+      .oferta {
+        position: relative; height: 430px; overflow: hidden;
+        border: 1px solid rgba(240,234,214,0.14);
+        background: #141414;
+      }
+      .oferta img { width: 100%; height: 100%; object-fit: contain; background: #F7F5F0; }
+      .pct {
+        position: absolute; top: 20px; right: 20px;
+        width: 92px; height: 92px; border-radius: 50%;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: linear-gradient(140deg, #d8544f, #a32e2a);
+        color: #fff; font-weight: 700; line-height: 1;
+        box-shadow: 0 6px 20px rgba(163,46,42,0.5);
+      }
+      .pct span:first-child { font-size: 28px; }
+      .pct span:last-child { font-size: 13px; letter-spacing: 0.14em; margin-top: 4px; opacity: 0.9; }
+      .nom { font-size: 21px; color: #F0EAD6; letter-spacing: 0.04em; margin-bottom: 10px; line-height: 1.3; }
+      .precios {
+        position: absolute; left: 0; right: 0; bottom: 0; padding: 20px 22px;
+        background: linear-gradient(0deg, rgba(14,14,14,0.96), rgba(14,14,14,0));
+      }
+      .antes { font-size: 24px; color: #7d7566; text-decoration: line-through; }
+      .ahora { font-size: 38px; color: #ff6b64; font-weight: 600; margin-top: 4px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="frame-05" data-start="0" data-duration="7"
+         data-width="1080" data-height="1920">
+
+      <div id="escena-ofertas" class="clip" data-start="0" data-duration="7" data-track-index="0"
+           style="position:absolute;inset:0;">
+
+        <div id="rotulo" class="rotulo">03 &middot; Ofertas</div>
+
+        <!-- el telefono sigue ahi; la camara lo va a atravesar -->
+        <div class="escenario">
+          <div id="sombra" class="sombra"></div>
+          <div id="flotador" class="flotador">
+            <div id="aparato" class="aparato">
+              <div class="cara">
+                <div class="cuerpo">
+                  <div class="pantalla">
+                    <img id="p-ofertas" src="assets/pantallas/ofertas.png" alt="">
+                  </div>
+                  <div class="vidrio"></div>
+                  <div class="isla"></div>
+                  <div class="boton izq-1"></div>
+                  <div class="boton izq-2"></div>
+                  <div class="boton izq-3"></div>
+                  <div class="boton der-1"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- contenido a cuadro completo tras atravesar la pantalla -->
+        <div id="pleno" style="position:absolute;inset:0;">
+          <div id="enc-pct" style="position:absolute;left:0;right:0;top:300px;text-align:center;
+                      font-size:30px;letter-spacing:0.26em;text-transform:uppercase;color:#ff6b64;">
+            Hasta 30% de descuento
+          </div>
+          <div id="enc-tit" class="serif" style="position:absolute;left:0;right:0;top:360px;
+                      text-align:center;font-size:110px;color:#C9A84C;">Ofertas</div>
+
+          <div class="rejilla">
+            <div class="oferta o1">
+              <img src="assets/productos/set-locion-nia-minnie-m2pcs.jpg" alt="">
+              <div class="pct"><span>-20%</span><span>OFF</span></div>
+              <div class="precios">
+                <div class="nom">Set Locion Nina Minnie 2pcs</div>
+                <div class="antes">L. 875.00</div><div class="ahora">L. 700.00</div>
+              </div>
+            </div>
+            <div class="oferta o2">
+              <img src="assets/productos/locion-disney-toy-story-100ml.webp" alt="">
+              <div class="pct"><span>-15%</span><span>OFF</span></div>
+              <div class="precios">
+                <div class="nom">Locion Disney Toy Story 100ml</div>
+                <div class="antes">L. 675.00</div><div class="ahora">L. 573.75</div>
+              </div>
+            </div>
+            <div class="oferta o3">
+              <img src="assets/productos/locion-nia-lattafa-play-75ml.jpg" alt="">
+              <div class="pct"><span>-15%</span><span>OFF</span></div>
+              <div class="precios">
+                <div class="nom">Locion Nina Lattafa Play 75ml</div>
+                <div class="antes">L. 680.00</div><div class="ahora">L. 578.00</div>
+              </div>
+            </div>
+            <div class="oferta o4">
+              <img src="assets/productos/locion-nio-spiderman-100-ml.jpg" alt="">
+              <div class="pct"><span>-15%</span><span>OFF</span></div>
+              <div class="precios">
+                <div class="nom">Locion Nino Spiderman 100ml</div>
+                <div class="antes">L. 535.00</div><div class="ahora">L. 454.75</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="apoyo" class="apoyo">Segui las ofertas donde ya estas</div>
+
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["frame-05"] = tl;
+
+      const tarjetas = ["#pleno .o1", "#pleno .o2", "#pleno .o3", "#pleno .o4"];
+
+      gsap.set("#aparato", { y: 0, rotateX: 0, rotateY: 0, scale: 1, opacity: 1 });
+      gsap.set("#sombra", { opacity: 1, scaleX: 1 });
+      gsap.set("#rotulo", { opacity: 0, y: -10 });
+      gsap.set("#apoyo", { opacity: 0, y: 16 });
+      gsap.set("#pleno", { opacity: 0 });
+      gsap.set(["#enc-pct", "#enc-tit"], { opacity: 0, y: 24 });
+      gsap.set(tarjetas, { opacity: 0, y: 70, filter: "blur(10px)" });
+
+      tl.to("#rotulo", { opacity: 1, y: 0, duration: 0.56, ease: "power2.out" }, 0.14);
+
+      // ── 0.3-1.5s · el telefono muestra el boton de Ofertas, flotando ──
+      tl.to("#flotador", { y: -18, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }, 0);
+      tl.to("#aparato",  { rotateY: 4.5, duration: 2.75, ease: "sine.inOut", yoyo: true, repeat: -1 }, 0);
+
+      // ── 1.5-3.5s · LA CAMARA ATRAVIESA LA PANTALLA ────────
+      // Unico golpe de energia de la pieza. El aparato crece hasta salirse
+      // de cuadro y se desvanece justo cuando ya no puede leerse como
+      // telefono; detras queda el contenido a pantalla completa.
+      tl.to("#flotador", { scale: 4.6, duration: 1.19, ease: "power2.in" }, 1.05);
+      tl.to("#flotador", { opacity: 0, duration: 0.35, ease: "power1.in" }, 1.89);
+      tl.to("#sombra", { opacity: 0, duration: 0.42, ease: "power1.in" }, 1.19);
+      tl.to("#pleno", { opacity: 1, duration: 0.42, ease: "power2.out" }, 1.82);
+      tl.to(["#enc-pct", "#enc-tit"], {
+        opacity: 1, y: 0, duration: 0.56, ease: "power2.out", stagger: 0.08
+      }, 1.96);
+
+      // ── 3.5-6.5s · las tarjetas caen escalonadas ──────────
+      tl.to(tarjetas, {
+        opacity: 1, y: 0, filter: "blur(0px)",
+        duration: 0.63, ease: "power2.out", stagger: 0.13
+      }, 2.45);
+
+      tl.to("#apoyo", { opacity: 1, y: 0, duration: 0.63, ease: "power2.out" }, 4.62);
+    </script>
+  </body>
+</html>

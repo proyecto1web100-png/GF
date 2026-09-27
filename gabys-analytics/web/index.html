@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaby's Fashion - Analitica</title>
+<style>
+  :root{
+    --oro:#c9a84c; --bg:#0e0e0e; --panel:#171717; --panel2:#1f1f1f;
+    --texto:#f0ead6; --tenue:#9a927e; --linea:#2c2c2c;
+    --verde:#4caf7d; --rojo:#d8544f; --ambar:#d9a441;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--texto);
+       font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+         padding:14px 22px;border-bottom:1px solid var(--linea);background:var(--panel)}
+  h1{font-size:18px;margin:0;color:var(--oro);letter-spacing:.5px}
+  .crece{flex:1}
+  button{background:var(--panel2);color:var(--texto);border:1px solid var(--linea);
+         padding:8px 14px;border-radius:7px;cursor:pointer;font-size:14px}
+  button:hover{border-color:var(--oro)}
+  button.primario{background:var(--oro);color:#1a1408;border-color:var(--oro);font-weight:600}
+  button:disabled{opacity:.5;cursor:default}
+  select{background:var(--panel2);color:var(--texto);border:1px solid var(--linea);padding:6px 10px;border-radius:7px;font-size:14px}
+  nav{display:flex;gap:4px;flex-wrap:wrap;padding:10px 22px;border-bottom:1px solid var(--linea)}
+  nav button{border:none;background:none;color:var(--tenue);padding:7px 13px;border-radius:7px}
+  nav button.activo{background:var(--panel2);color:var(--oro)}
+  main{padding:22px;max-width:1400px;margin:0 auto}
+  section{display:none} section.activo{display:block}
+  .tarjetas{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:22px}
+  .tarjeta{background:var(--panel);border:1px solid var(--linea);border-radius:11px;padding:15px 17px}
+  .tarjeta .rotulo{font-size:12px;color:var(--tenue);text-transform:uppercase;letter-spacing:.6px}
+  .tarjeta .valor{font-size:25px;font-weight:600;margin-top:6px}
+  .tarjeta .pie{font-size:13px;color:var(--tenue);margin-top:4px}
+  .sube{color:var(--verde)} .baja{color:var(--rojo)} .ojo{color:var(--ambar)}
+  .caja{background:var(--panel);border:1px solid var(--linea);border-radius:11px;
+        padding:17px;margin-bottom:20px;overflow-x:auto}
+  .caja h2{font-size:15px;margin:0 0 4px;color:var(--oro)}
+  .caja p.nota{font-size:13px;color:var(--tenue);margin:0 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--linea);white-space:nowrap}
+  th{color:var(--tenue);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  tr:hover td{background:var(--panel2)}
+  .etiqueta{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;
+            background:var(--panel2);border:1px solid var(--linea)}
+  .cargando{color:var(--tenue);padding:34px;text-align:center}
+  .aviso{background:#2a1c15;border:1px solid #6b4526;color:#f0c9a0;
+         padding:11px 15px;border-radius:9px;margin-bottom:18px;font-size:14px}
+  #ia{line-height:1.7}
+  #ia p{margin:0 0 13px}
+  #ia hr{border:none;border-top:1px solid var(--linea);margin:20px 0}
+  #ia i{color:var(--tenue);font-size:13px}
+  #ia h2{color:var(--oro);font-size:16px;margin:22px 0 8px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:20px}
+  svg{display:block;width:100%;height:auto}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Gaby's Fashion &middot; Analitica</h1>
+  <span class="crece"></span>
+  <span id="generado" class="etiqueta"></span>
+  <button id="btnRefrescar">Actualizar desde RMS</button>
+</header>
+
+<nav>
+  <button data-vista="resumen" class="activo">Resumen</button>
+  <button data-vista="ventas">Ventas</button>
+  <button data-vista="margen">Margen</button>
+  <button data-vista="productos">Productos</button>
+  <button data-vista="clientes">Clientes</button>
+  <button data-vista="fiado">Fiado</button>
+  <button data-vista="temporada">Temporada</button>
+  <button data-vista="ia">Analisis IA</button>
+</nav>
+
+<main>
+  <div id="cargando" class="cargando">Cargando datos...</div>
+  <section id="v-resumen" class="activo"></section>
+  <section id="v-ventas"></section>
+  <section id="v-margen"></section>
+  <section id="v-productos"></section>
+  <section id="v-clientes"></section>
+  <section id="v-fiado"></section>
+  <section id="v-temporada"></section>
+  <section id="v-ia"></section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

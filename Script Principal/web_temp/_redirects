@@ -1,0 +1,4 @@
+# Netlify redirects — Gaby's Fashion
+# Los archivos que existen (index.html, gf-panel-7x9k2m.html, admin.html, etc.)
+# se sirven directamente. Cualquier ruta desconocida carga la tienda.
+/*    /index.html   200

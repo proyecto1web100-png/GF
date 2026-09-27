@@ -1,0 +1,48 @@
+/* Estilos compartidos del pase de bocetos.
+   Wireframe, no diseno final: fondo y tinta de frame.md, un solo acento en el
+   foco, bloques planos donde luego iran el telefono y las capturas. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 1080px; height: 1920px; overflow: hidden;
+  background: #0E0E0E;                      /* colors.ink-black */
+}
+#root {
+  width: 100%; height: 100%; position: relative;
+  color: #F0EAD6;                           /* colors.cream */
+  font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+}
+.serif { font-family: "Cormorant Garamond", Georgia, serif; }
+
+/* rotulo de bloque, esquina superior — versalitas espaciadas */
+.rotulo {
+  position: absolute; top: 90px; left: 72px;
+  font-size: 26px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #C9A84C;                           /* colors.fire-orange = foco */
+}
+/* texto de apoyo al pie */
+.apoyo {
+  position: absolute; left: 72px; right: 72px; bottom: 150px;
+  text-align: center; font-size: 34px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #9A8E7A;
+}
+/* bloque plano: representa el telefono */
+.telefono {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  border: 2px solid rgba(201,168,76,0.22); border-radius: 46px;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; color: #6E6857; font-size: 24px; letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+/* bloque plano: representa una captura del sitio dentro del telefono */
+.pantalla {
+  width: 100%; height: 100%; border-radius: 34px;
+  border: 1px dashed rgba(240,234,214,0.18);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+/* tarjeta de dato que sale del telefono */
+.tarjeta {
+  position: absolute; border: 1px solid rgba(201,168,76,0.35);
+  padding: 26px 32px; font-size: 26px; letter-spacing: 0.06em;
+  background: #1A1A1A;
+}
+.tarjeta b { display: block; font-size: 38px; color: #C9A84C; margin-top: 10px; letter-spacing: 0.02em; }

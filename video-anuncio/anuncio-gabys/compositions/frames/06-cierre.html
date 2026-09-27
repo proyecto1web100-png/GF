@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Montserrat:wght@300;400;500&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="compositions/frames/_escena.css">
+  </head>
+  <body>
+    <div id="root" data-composition-id="frame-06" data-start="0" data-duration="2.8"
+         data-width="1080" data-height="1920">
+
+      <div id="escena-cierre" class="clip" data-start="0" data-duration="2.8" data-track-index="0"
+           style="position:absolute;inset:0;">
+
+        <!-- La marca vuelve al MISMO lugar del Frame 1: el video cierra el
+             circulo donde lo abrio. -->
+        <div id="marca" style="position:absolute;left:0;right:0;top:420px;text-align:center;">
+          <div class="serif" style="font-size:150px;line-height:1.02;color:#F0EAD6;">Gaby's</div>
+          <div class="serif" style="font-size:150px;line-height:1.02;color:#C9A84C;font-style:italic;">Fashion</div>
+          <div id="subrayado"
+               style="width:260px;height:3px;background:#C9A84C;margin:28px auto 0;transform-origin:center;"></div>
+        </div>
+
+        <div id="url"
+             style="position:absolute;left:0;right:0;top:980px;text-align:center;
+                    font-size:34px;letter-spacing:0.18em;text-transform:uppercase;color:#C9A84C;font-weight:300;">
+          gabysfashion.netlify.app
+        </div>
+
+        <div id="redes"
+             style="position:absolute;left:0;right:0;bottom:230px;text-align:center;
+                    font-size:26px;letter-spacing:0.16em;text-transform:uppercase;color:#9A8E7A;font-weight:300;">
+          WhatsApp &nbsp;&middot;&nbsp; Facebook &nbsp;&middot;&nbsp; Instagram
+        </div>
+
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["frame-06"] = tl;
+
+      gsap.set("#marca", { opacity: 0, filter: "blur(18px)" });
+      gsap.set("#subrayado", { scaleX: 0 });
+      gsap.set(["#url", "#redes"], { opacity: 0 });
+
+      // la marca se asienta, igual que en la apertura
+      tl.to("#marca", { opacity: 1, filter: "blur(0px)", duration: 0.84, ease: "power2.out" }, 0.18);
+      tl.to("#subrayado", { scaleX: 1, duration: 0.56, ease: "power2.inOut" }, 0.63);
+      tl.to("#url", { opacity: 1, duration: 0.63, ease: "power1.out" }, 0.98);
+      tl.to("#redes", { opacity: 1, duration: 0.63, ease: "power1.out" }, 1.26);
+
+      // ultimo segundo: se apaga todo menos la marca y su subrayado
+      tl.to(["#url", "#redes"], { opacity: 0.35, duration: 0.56, ease: "power1.inOut" }, 2.1);
+    </script>
+  </body>
+</html>

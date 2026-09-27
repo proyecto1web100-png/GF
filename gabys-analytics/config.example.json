@@ -1,0 +1,24 @@
+{
+  "sql": {
+    "server": "192.168.100.3",
+    "database": "GABY",
+    "user": "",
+    "password": "",
+    "trustedConnection": true
+  },
+  "negocio": {
+    "moneda": "L.",
+    "nombre": "Gaby's Fashion",
+    "clientesGenericos": [55, 56],
+    "diasInventarioMuerto": 365,
+    "objetivoMargen": 50
+  },
+  "ia": {
+    "apiKey": "",
+    "modelo": "claude-opus-5",
+    "habilitada": true
+  },
+  "servidor": {
+    "puerto": 4000
+  }
+}

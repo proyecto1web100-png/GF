@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400;1,600&family=Montserrat:wght@300;400;500&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="stylesheet" href="compositions/frames/_escena.css">
+  </head>
+  <body>
+    <div id="root" data-composition-id="frame-03" data-start="0" data-duration="7.7"
+         data-width="1080" data-height="1920">
+
+      <div id="escena-catalogo" class="clip" data-start="0" data-duration="7.7" data-track-index="0"
+           style="position:absolute;inset:0;">
+
+        <div id="rotulo" class="rotulo">01 &middot; Catalogo</div>
+
+        <div class="escenario">
+          <div id="sombra" class="sombra"></div>
+          <div id="flotador" class="flotador">
+            <div id="aparato" class="aparato">
+              <div class="cuerpo">
+                <div class="pantalla">
+                  <!-- tres pantallas apiladas; se cambian con opacidad -->
+                  <img id="p-hero"      src="assets/pantallas/hero.png" alt="">
+                  <img id="p-catalogo"  src="assets/pantallas/catalogo.png" alt="">
+                  <img id="p-productos" src="assets/pantallas/productos.png" alt="">
+                  <img id="p-carrito"   src="assets/pantallas/carrito.png" alt="">
+                </div>
+                <div class="vidrio"></div>
+                <div class="isla"></div>
+                <div class="boton izq-1"></div>
+                <div class="boton izq-2"></div>
+                <div class="boton izq-3"></div>
+                <div class="boton der-1"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="apoyo" class="apoyo">Elegis y lo aparta</div>
+
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["frame-03"] = tl;
+
+      // El telefono continua exactamente donde lo dejo el Frame 2.
+      gsap.set("#aparato", { y: 0, rotateX: 0, rotateY: 0, scale: 1, opacity: 1 });
+      gsap.set("#sombra", { opacity: 1, scaleX: 1 });
+      gsap.set("#rotulo", { opacity: 0, y: -10 });
+      gsap.set("#apoyo", { opacity: 0, y: 16 });
+      gsap.set(["#p-catalogo", "#p-productos", "#p-carrito"], { opacity: 0 });
+
+      // ── flotacion continua (misma cadencia que el Frame 2) ──
+      tl.to("#flotador", { y: -18, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }, 0);
+      tl.to("#flotador", { rotateZ: 0.7, duration: 2.8, ease: "sine.inOut", yoyo: true, repeat: -1 }, 0);
+      tl.to("#aparato",  { rotateY: 4.5, duration: 2.75, ease: "sine.inOut", yoyo: true, repeat: -1 }, 0);
+      tl.to("#sombra", { scaleX: 0.9, opacity: 0.72, duration: 2.1, ease: "sine.inOut", yoyo: true, repeat: -1 }, 0);
+
+      tl.to("#rotulo", { opacity: 1, y: 0, duration: 0.56, ease: "power2.out" }, 0.14);
+
+      // ── 0.5-3.5s · del hero al catalogo, como un dedo deslizando ──
+      tl.to("#p-catalogo", { opacity: 1, duration: 0.84, ease: "power1.inOut" }, 0.63);
+      tl.to("#p-hero", { opacity: 0, duration: 0.84, ease: "power1.inOut" }, 0.63);
+
+      // ── 3.5-6.5s · rejilla de productos + acercamiento de camara ──
+      tl.to("#p-productos", { opacity: 1, duration: 0.63, ease: "power1.inOut" }, 2.45);
+      tl.to("#p-catalogo", { opacity: 0, duration: 0.63, ease: "power1.inOut" }, 2.45);
+      // la camara se acerca: la escala vive en el flotador para no pisar el giro
+      tl.to("#flotador", { scale: 1.12, duration: 1.12, ease: "power2.inOut" }, 2.52);
+
+      // ── 6.5-9.5s · vuelve y muestra el carrito ──
+      tl.to("#flotador", { scale: 1.0, duration: 0.98, ease: "power2.inOut" }, 4.48);
+      tl.to("#p-carrito", { opacity: 1, duration: 0.63, ease: "power1.inOut" }, 4.76);
+      tl.to("#p-productos", { opacity: 0, duration: 0.63, ease: "power1.inOut" }, 4.76);
+
+      tl.to("#apoyo", { opacity: 1, y: 0, duration: 0.63, ease: "power2.out" }, 5.18);
+
+      // 9.5-11s · respiro: solo la flotacion sigue
+    </script>
+  </body>
+</html>

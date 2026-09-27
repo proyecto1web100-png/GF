@@ -1,0 +1,294 @@
+/* ============================================================
+   Estilos del anuncio — capa de construccion (reemplaza _sketch.css)
+
+   El telefono reutiliza la geometria y los materiales de
+   compositions/components/device-frame-stage.html (radio, bisel, degradado
+   del cuerpo, sombra de 5 capas, preserve-3d, origen de giro al 88%).
+   Se construye aqui en vez de montar el componente porque necesitamos
+   controlar la flotacion continua y un giro puntual, y su ley interna
+   prohibe girar el aparato.
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 1080px; height: 1920px; overflow: hidden;
+  background: #0E0E0E;                       /* colors.ink-black */
+}
+#root {
+  width: 100%; height: 100%; position: relative;
+  color: #F0EAD6;                            /* colors.cream */
+  font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.serif { font-family: "Cormorant Garamond", Georgia, serif; }
+
+/* ── ESCENARIO 3D ──────────────────────────────────────────
+   La perspectiva vive en el escenario, no en el aparato: asi el giro
+   se ve como un objeto real girando y no como una lamina deformandose. */
+.escenario {
+  position: absolute; inset: 0;
+  perspective: 1900px;
+  perspective-origin: 50% 46%;
+}
+
+/* ── TELEFONO ──────────────────────────────────────────────
+   .flotador  → deriva lenta en el espacio (nunca se detiene)
+   .aparato   → giro puntual y escala de camara
+   Separados a proposito: dos animaciones sobre el mismo elemento se
+   pisan entre si; en capas distintas se componen limpio. */
+.flotador {
+  position: absolute; left: 50%; top: 50%;
+  width: 560px; height: 1150px;
+  margin-left: -280px; margin-top: -575px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.aparato {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 50% 88%;                 /* igual que el componente */
+  will-change: transform;
+}
+
+/* cuerpo: degradado de metal + sombra de 5 capas del componente */
+.cuerpo {
+  position: absolute; inset: 0;
+  border-radius: 54px;
+  padding: 11px;
+  background: linear-gradient(145deg, #343740, #1b1d22 42%, #111318);
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow:
+    0 52px 110px rgba(7,10,20,0.55),
+    0 18px 38px rgba(7,10,20,0.40),
+    0 3px 9px rgba(7,10,20,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.24),
+    inset 0 0 0 1px rgba(0,0,0,0.48);
+  transform-style: preserve-3d;
+}
+
+/* pantalla */
+.pantalla {
+  position: absolute; inset: 11px;
+  border-radius: 43px;
+  overflow: hidden;
+  background: #0E0E0E;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.9);
+}
+.pantalla img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;   /* llena la pantalla; recorta ~7% de margen vacio por lado */
+  object-position: center top;
+  filter: brightness(1.07) saturate(1.04);
+}
+
+/* isla de camara */
+.isla {
+  position: absolute; top: 26px; left: 50%; transform: translateX(-50%);
+  width: 108px; height: 31px; border-radius: 20px;
+  background: #05060a;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+  z-index: 4;
+}
+
+/* botones laterales — detalle que vende el realismo */
+.boton {
+  position: absolute; width: 3px; border-radius: 2px;
+  background: linear-gradient(180deg, #3a3d46, #23262d);
+}
+.boton.izq-1 { left: -3px; top: 210px;  height: 58px; }
+.boton.izq-2 { left: -3px; top: 300px;  height: 96px; }
+.boton.izq-3 { left: -3px; top: 420px;  height: 96px; }
+.boton.der-1 { right: -3px; top: 330px; height: 150px; }
+
+/* brillo fijo del vidrio: NO es un destello que barre, es el reflejo
+   estatico de una fuente de luz. Se mueve solo con el aparato. */
+.vidrio {
+  position: absolute; inset: 11px; border-radius: 43px; z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(118deg,
+    rgba(255,255,255,0.10) 0%,
+    rgba(255,255,255,0.03) 18%,
+    rgba(255,255,255,0) 38%);
+}
+
+/* sombra proyectada en el suelo: ancla el objeto al espacio */
+.sombra {
+  position: absolute; left: 50%; top: 50%;
+  width: 500px; height: 88px; margin-left: -250px; margin-top: 588px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.85), rgba(0,0,0,0) 70%);
+  filter: blur(26px);
+}
+
+/* ── TIPOGRAFIA DE ESCENA ──────────────────────────────── */
+.rotulo {
+  position: absolute; top: 96px; left: 0; right: 0; text-align: center;
+  font-size: 27px; letter-spacing: 0.30em; text-transform: uppercase;
+  color: #C9A84C;
+}
+.apoyo {
+  position: absolute; left: 80px; right: 80px; bottom: 168px;
+  text-align: center; font-size: 35px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: #9A8E7A; font-weight: 300;
+}
+.tarjeta {
+  position: absolute; padding: 30px 34px;
+  background: rgba(26,26,26,0.92);
+  border: 1px solid rgba(201,168,76,0.32);
+  backdrop-filter: blur(6px);
+  font-size: 25px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #9A8E7A; font-weight: 300;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+}
+.tarjeta b {
+  display: block; margin-top: 12px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 50px; letter-spacing: 0.01em; text-transform: none;
+  color: #C9A84C; font-weight: 600;
+}
+
+/* ── DOS CARAS ─────────────────────────────────────────────
+   Para que el giro sea creible el aparato necesita espalda. Sin esto,
+   al pasar los 90 grados se veria la pantalla espejada — el error que
+   delata a una animacion barata. Cada cara oculta su reverso. */
+.cara {
+  position: absolute; inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+.cara-trasera { transform: rotateY(180deg); }
+
+/* espalda del telefono: mismo material, sin pantalla */
+.trasera-cuerpo {
+  position: absolute; inset: 0;
+  border-radius: 54px;
+  background: linear-gradient(200deg, #2c2f37, #1b1d22 46%, #0d0f13);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 0 0 1px rgba(0,0,0,0.5);
+}
+/* Modulo de camaras de un iPhone 15 Pro. La silueta que lo identifica es el
+   triangulo de tres lentes grandes sobre un cuadrado apenas levantado, con el
+   flash y el LiDAR ocupando el hueco de arriba a la derecha. */
+.camaras {
+  position: absolute; top: 30px; left: 30px;
+  width: 186px; height: 186px; border-radius: 58px;
+  background: linear-gradient(150deg, #383b43, #1b1d23 55%, #131519);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 0 0 1px rgba(255,255,255,0.06),
+    0 6px 18px rgba(0,0,0,0.55);
+}
+/* Cada lente sobresale: aro metalico por fuera y cristal oscuro por dentro. */
+.lente {
+  position: absolute; width: 66px; height: 66px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 30%, rgba(120,132,150,0.55), rgba(10,11,14,0) 46%),
+    radial-gradient(circle at 50% 50%, #23262d 30%, #08090c 70%);
+  box-shadow:
+    0 0 0 4px #2b2e35,                 /* aro */
+    0 0 0 5px rgba(255,255,255,0.10),  /* filo brillante del aro */
+    0 3px 8px rgba(0,0,0,0.7);
+}
+.lente.a { top: 18px; left: 18px; }   /* gran angular */
+.lente.b { top: 102px; left: 18px; }  /* ultra gran angular */
+.lente.c { top: 102px; left: 102px; } /* teleobjetivo */
+/* flash de dos tonos, arriba a la derecha */
+.flash {
+  position: absolute; top: 22px; left: 116px;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #fdf6e3 38%, #d9c9a0 62%, #6b6252);
+  box-shadow: 0 0 0 3px #2b2e35, 0 0 10px rgba(253,246,227,0.18);
+}
+/* LiDAR: circulo pequeno y mate justo debajo del flash */
+.lidar {
+  position: absolute; top: 70px; left: 124px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #2a2d34, #0a0b0e 70%);
+  box-shadow: 0 0 0 2px #2b2e35;
+}
+
+/* ── CAPA DE MOTION GRAPHICS ───────────────────────────────
+   Todo lo que rodea al telefono: fondo vivo, riel de avance, rotulos de
+   seccion, fichas con linea de conexion y barrido entre segmentos. */
+
+/* Fondo: resplandor dorado que respira + reticula de puntos con parallaje.
+   Da profundidad sin competir con la pantalla. */
+.brillo {
+  position: absolute; left: 50%; top: 46%;
+  width: 1500px; height: 1500px; margin: -750px 0 0 -750px;
+  background: radial-gradient(circle at center,
+    rgba(201,168,76,0.16) 0%, rgba(201,168,76,0.05) 34%, rgba(201,168,76,0) 62%);
+  pointer-events: none;
+}
+.reticula {
+  position: absolute; inset: -120px;
+  background-image: radial-gradient(rgba(240,234,214,0.14) 1.5px, transparent 1.5px);
+  background-size: 54px 54px;
+  mask-image: radial-gradient(ellipse 62% 52% at 50% 46%, #000 20%, transparent 74%);
+  -webkit-mask-image: radial-gradient(ellipse 62% 52% at 50% 46%, #000 20%, transparent 74%);
+  pointer-events: none;
+}
+
+/* Riel de avance: cuatro tramos, el activo se llena de oro. Le dice al
+   espectador cuanto falta, que es lo que sostiene la atencion. */
+.riel {
+  position: absolute; left: 90px; right: 90px; bottom: 96px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+}
+.tramo {
+  position: relative; height: 3px; background: rgba(240,234,214,0.14);
+  overflow: hidden;
+}
+.tramo i {
+  position: absolute; inset: 0; display: block; background: #C9A84C;
+  transform: scaleX(0); transform-origin: left center;
+}
+
+/* Rotulo de seccion: el numero grande y tenue detras del nombre. */
+.seccion { position: absolute; left: 0; right: 0; top: 88px; text-align: center; }
+/* El numero es marca de agua: va detras y muy tenue, y el nombre se apoya
+   sobre su mitad inferior en vez de encimarse a los trazos. */
+.seccion .num {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 150px; line-height: 0.78; color: #615F59;
+}
+.seccion .nom {
+  position: relative; margin-top: -42px;
+  font-size: 31px; letter-spacing: 0.34em; text-transform: uppercase; color: #C9A84C;
+  text-shadow: 0 0 22px rgba(14,14,14,0.95), 0 0 8px rgba(14,14,14,0.9);
+}
+
+/* Ficha con linea: sale del borde del telefono hacia afuera. La linea se
+   dibuja primero y la ficha aterriza despues. */
+.ficha {
+  position: absolute; padding: 20px 26px;
+  background: rgba(20,20,20,0.94);
+  border: 1px solid rgba(201,168,76,0.30);
+  box-shadow: 0 20px 52px rgba(0,0,0,0.65);
+  font-size: 23px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #9A8E7A; font-weight: 300; white-space: nowrap;
+}
+.ficha b {
+  display: block; margin-top: 8px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 44px; letter-spacing: 0.01em; text-transform: none;
+  color: #C9A84C; font-weight: 600;
+}
+.hilo { position: absolute; height: 1px; background: #C9A84C; transform-origin: left center; }
+.hilo.der { transform-origin: right center; }
+
+/* Barrido: una linea de luz que cruza el cuadro al cambiar de seccion. */
+.barrido {
+  position: absolute; left: -10%; right: -10%; height: 2px; top: 50%;
+  background: linear-gradient(90deg,
+    rgba(201,168,76,0) 0%, rgba(201,168,76,0.9) 50%, rgba(201,168,76,0) 100%);
+  pointer-events: none;
+}
+
+/* El video del sitio ocupa la pantalla igual que una captura fija. */
+.pantalla video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+  filter: brightness(1.07) saturate(1.04);
+}
