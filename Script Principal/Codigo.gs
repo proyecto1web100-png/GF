@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v8.3
+//  Gaby's Fashion — Google Apps Script v8.4
 //  Cambios vs v7:
 //    - Limpieza de productos repetidos (limpiarProductosDuplicados)
 //    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
@@ -597,7 +597,10 @@ function migrarImagenesACloudinary() {
   const cfg    = cloudinaryCfg();
   probarCloudinary(cfg);   // si la clave esta mal, se corta aqui sin tocar nada
   const inicio = Date.now();
-  const LIMITE = 4.5 * 60 * 1000;
+  // Apps Script corta a los 6 min y si ImgBB no responde cada pedido puede
+  // tardar hasta 1 min: se deja de subir a los 3.5 min para alcanzar a
+  // guardar los enlaces en la hoja.
+  const LIMITE = 3.5 * 60 * 1000;
   const LOTE   = 4;   // ImgBB corta si se le piden muchas a la vez
   const ss     = SpreadsheetApp.openById(SHEET_ID);
 
@@ -623,6 +626,11 @@ function migrarImagenesACloudinary() {
         catch (err) { error[lote[k]] = err.message; }
       });
       Utilities.sleep(300);
+      if ((i / LOTE) % 5 === 4) {
+        Logger.log('  ... ' + Math.min(i + LOTE, lista.length) + ' de ' + lista.length +
+                   ' intentadas (' + Object.keys(nuevas).length + ' subidas, ' +
+                   Math.round((Date.now() - inicio) / 1000) + ' s)');
+      }
     }
     return lista.slice(i);   // las que no se alcanzaron a intentar
   };
