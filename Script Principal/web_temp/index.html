@@ -25,6 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://opensheet.elk.sh">
 <link rel="dns-prefetch" href="https://i.ibb.co">
+<link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230E0E0E'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-family='Georgia,serif' font-size='44' font-style='italic' fill='%23C9A84C'%3EG%3C/text%3E%3C/svg%3E">
 <link rel="icon" type="image/jpeg" href="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
 <link rel="apple-touch-icon" href="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg">
@@ -1126,7 +1127,7 @@
     <!-- Logo + texto principal -->
     <div class="nosotros-top">
       <div class="nosotros-logo-wrap" id="nosotrosLogo">
-        <img src="https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg" alt="Gaby's Fashion Logo" class="nosotros-logo-img">
+        <img src="https://res.cloudinary.com/nk1cbbe2/image/upload/f_auto,q_auto,c_limit,w_400/gabys/imgbb/JRFYK77G_PHOTO-2026-05-25-15-58-59" onerror="this.onerror=null;this.src='https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg'" alt="Gaby's Fashion Logo" class="nosotros-logo-img">
         <span class="nosotros-since">Desde 2012</span>
       </div>
       <div class="nosotros-content">
@@ -1542,7 +1543,7 @@ function makeCardHTML(p) {
     ? `<span class="price-liq"><span class="price-old">${p.precioOriginal}</span><span class="price-new">${p.precio}</span></span>`
     : `<span class="product-price">${p.precio || 'Consultar'}</span>`;
   const imgHTML = p.imagen
-    ? `<img class="img-bg lazy" data-src="${p.imagen}" alt="" aria-hidden="true" decoding="async"><img class="img-main lazy" data-src="${p.imagen}" alt="${p.nombre}" decoding="async">`
+    ? `<img class="img-bg lazy" data-src="${fotoOptimizada(p.imagen, 160)}" alt="" aria-hidden="true" decoding="async"><img class="img-main lazy" data-src="${fotoOptimizada(p.imagen, 700)}" alt="${p.nombre}" decoding="async">`
     : `<span class="emoji-fallback">${p.emoji || '🛍️'}</span>`;
   return `<div class="product-card">
     <div class="product-img">${imgHTML}${badge}${liqBadge}</div>
@@ -1894,6 +1895,17 @@ function aplicarLiquidacion(p) {
   return p;
 }
 
+// ── FOTOS ────────────────────────────────────────────────────
+// Las fotos de Cloudinary se piden ya achicadas al ancho que se muestra y en
+// el mejor formato para el navegador (WebP/AVIF). Pesan mucho menos y gastan
+// menos del plan gratis. Las que siguen en ImgBB u otro sitio van tal cual.
+function fotoOptimizada(url, ancho) {
+  const u = String(url || '').trim();
+  const m = u.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/);
+  if (!m || /^[a-z]{1,3}_[^/]*\//.test(m[2])) return u;   // no es Cloudinary o ya trae ajustes
+  return m[1] + 'f_auto,q_auto,c_limit,w_' + ancho + '/' + m[2];
+}
+
 // ── REPETIDOS POR TIPOGRAFÍA ─────────────────────────────────
 // Cuando el sync mandaba "NiÃ±a" en vez de "Niña" quedaron filas con el
 // nombre dañado, y al corregirse se agregó la fila buena al lado. La dañada
@@ -2116,7 +2128,7 @@ function buildCarousel(slides) {
 
   function slideHTML(s) {
     return `<div class="carousel-slide">
-      <img src="${s.imagen}" alt="${s.titulo||''}" loading="eager" decoding="async">
+      <img src="${fotoOptimizada(s.imagen, 1600)}" alt="${s.titulo||''}" loading="eager" decoding="async">
       <div class="slide-overlay"></div>
       ${s.titulo || s.subtitulo ? `<div class="slide-caption">
         ${s.titulo ? `<h2>${s.titulo}</h2>` : ''}
@@ -2433,7 +2445,7 @@ function cartRender() {
 
   el.innerHTML = items.map(([key, {product:p, qty}]) => {
     const thumb = p.imagen
-      ? `<img src="${p.imagen}" alt="${p.nombre}" loading="lazy" onerror="this.style.display='none'">`
+      ? `<img src="${fotoOptimizada(p.imagen, 160)}" alt="${p.nombre}" loading="lazy" onerror="this.style.display='none'">`
       : `<span class="ci-fallback">${p.emoji || '🛍️'}</span>`;
     return `<div class="cart-item">
       <div class="cart-item-thumb">${thumb}</div>

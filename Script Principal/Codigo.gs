@@ -111,6 +111,7 @@ function doPost(e) {
 
     if (data.products !== undefined) return handleProductos(data);
     if (type === 'productos_fin')    return handleProductosFin(data);
+    if (type === 'subir_imagen')     return handleSubirImagen(data); // solo desde el panel
     if (type === 'banners')          return handleBanners(data);
     if (type === 'config')           return handleConfig(data);
     if (type === 'categorias')       return handleCategorias(data);
@@ -447,6 +448,190 @@ function limpiarProductosDuplicados() {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ── FOTOS EN CLOUDINARY ──────────────────────────────────────
+//  Las fotos estaban en ImgBB, que dejo de mostrarlas. Ahora van a
+//  Cloudinary (plan gratis). Las credenciales NO van en el codigo: se ponen en
+//  Configuracion del proyecto > Propiedades del script:
+//    CLOUDINARY_CLOUD, CLOUDINARY_KEY, CLOUDINARY_SECRET
+//
+//  - handleSubirImagen: el panel manda la foto aqui y se sube a Cloudinary,
+//    asi la clave nunca queda en la pagina.
+//  - migrarImagenesACloudinary: correr a mano (las veces que haga falta) para
+//    pasar las fotos que ya estan en ImgBB. Cloudinary las descarga directo
+//    del enlace de ImgBB, asi que ImgBB tiene que estar respondiendo.
+
+const CLD_MIGRADAS = 'gabys/imgbb';      // carpeta de las fotos traidas de ImgBB
+const CLD_NUEVAS   = 'gabys/productos';  // carpeta de las que se suben desde el panel
+const LOGO_IMGBB   = 'https://i.ibb.co/JRFYK77G/PHOTO-2026-05-25-15-58-59.jpg';
+
+function cloudinaryCfg() {
+  const p = PropertiesService.getScriptProperties();
+  const cfg = {
+    cloud:  (p.getProperty('CLOUDINARY_CLOUD')  || '').trim(),
+    key:    (p.getProperty('CLOUDINARY_KEY')    || '').trim(),
+    secret: (p.getProperty('CLOUDINARY_SECRET') || '').trim()
+  };
+  if (!cfg.cloud || !cfg.key || !cfg.secret) {
+    throw new Error('Faltan CLOUDINARY_CLOUD, CLOUDINARY_KEY o CLOUDINARY_SECRET en Propiedades del script');
+  }
+  return cfg;
+}
+
+// Firma de Cloudinary: parametros ordenados "a=1&b=2" + secreto, en SHA-1
+function firmaCloudinary(params, secret) {
+  const texto = Object.keys(params).sort().map(k => k + '=' + params[k]).join('&') + secret;
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_1, texto, Utilities.Charset.UTF_8);
+  return bytes.map(b => ((b & 0xFF) + 0x100).toString(16).slice(1)).join('');
+}
+
+// Arma el pedido de subida. file: un enlace (Cloudinary lo descarga) o un
+// data URI "data:image/jpeg;base64,...".
+function pedidoCloudinary(cfg, file, opciones) {
+  const params = Object.assign({ timestamp: Math.floor(Date.now() / 1000) }, opciones);
+  return {
+    url: 'https://api.cloudinary.com/v1_1/' + cfg.cloud + '/image/upload',
+    method: 'post',
+    payload: Object.assign({}, params, { file: file, api_key: cfg.key, signature: firmaCloudinary(params, cfg.secret) }),
+    muteHttpExceptions: true
+  };
+}
+
+// Devuelve la secure_url o lanza error con el mensaje de Cloudinary
+function leerRespuestaCloudinary(res) {
+  let json = {};
+  try { json = JSON.parse(res.getContentText()); } catch (e) {}
+  if (res.getResponseCode() === 200 && json.secure_url) return json.secure_url;
+  throw new Error('Cloudinary ' + res.getResponseCode() + ': ' + ((json.error && json.error.message) || res.getContentText().slice(0, 200)));
+}
+
+function handleSubirImagen(data) {
+  const img = String(data.imagen || '');
+  if (!/^data:image\/(jpeg|png|webp|gif);base64,/.test(img)) {
+    return out(JSON.stringify({ ok: false, error: 'imagen invalida' }));
+  }
+  if (img.length > 14 * 1024 * 1024) {
+    return out(JSON.stringify({ ok: false, error: 'imagen muy grande' }));
+  }
+  try {
+    const cfg = cloudinaryCfg();
+    const { url, ...opciones } = pedidoCloudinary(cfg, img, { folder: CLD_NUEVAS });
+    const res = UrlFetchApp.fetch(url, opciones);
+    return out(JSON.stringify({ ok: true, url: leerRespuestaCloudinary(res) }));
+  } catch (err) {
+    return out(JSON.stringify({ ok: false, error: err.message }));
+  }
+}
+
+// Solo enlaces directos a la imagen (i.ibb.co/...). Los de la pagina de
+// ImgBB (ibb.co/xxxx) son HTML y Cloudinary no los puede usar.
+function esImgbbDirecto(v) {
+  return /^https?:\/\/i\.ibb\.co\/\S+$/i.test(String(v || '').trim());
+}
+
+// Nombre fijo por foto: si se corre dos veces no se duplica en Cloudinary.
+// https://i.ibb.co/JRFYK77G/foto.jpg -> gabys/imgbb/JRFYK77G_foto
+function idCloudinaryDe(url) {
+  const partes = String(url).trim().split('?')[0].split('/').slice(3);
+  const limpio = partes.join('_').replace(/\.[a-z0-9]+$/i, '').replace(/[^A-Za-z0-9_-]/g, '_');
+  return CLD_MIGRADAS + '/' + limpio;
+}
+
+// Prueba: solo cuenta cuantas fotos de ImgBB hay en cada hoja. No sube nada.
+function contarImagenesImgbb() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let total = 0;
+  const unicas = {};
+  ss.getSheets().forEach(sh => {
+    if (sh.getName() === 'ProductosEliminados' || sh.getLastRow() === 0) return;
+    let n = 0;
+    sh.getDataRange().getValues().forEach(fila => fila.forEach(v => {
+      if (esImgbbDirecto(v)) { n++; unicas[String(v).trim()] = true; }
+    }));
+    if (n) Logger.log(sh.getName() + ': ' + n + ' celdas con foto de ImgBB');
+    total += n;
+  });
+  Logger.log('Total: ' + total + ' celdas, ' + Object.keys(unicas).length + ' fotos distintas.');
+  cloudinaryCfg();   // avisa ya si faltan las propiedades
+  Logger.log('Credenciales de Cloudinary: configuradas.');
+}
+
+// Pasa las fotos de ImgBB a Cloudinary y cambia los enlaces en todas las
+// hojas. Apps Script corta a los 6 minutos: si quedan fotos, lo dice en el
+// registro y hay que volver a ejecutarla (sigue donde quedo).
+function migrarImagenesACloudinary() {
+  const cfg    = cloudinaryCfg();
+  const inicio = Date.now();
+  const LIMITE = 4.5 * 60 * 1000;
+  const LOTE   = 8;
+  const ss     = SpreadsheetApp.openById(SHEET_ID);
+
+  const hojas = ss.getSheets().filter(sh => sh.getName() !== 'ProductosEliminados' && sh.getLastRow() > 0);
+  const pendientes = {};
+  pendientes[LOGO_IMGBB] = true;
+  hojas.forEach(sh => sh.getDataRange().getValues().forEach(fila => fila.forEach(v => {
+    if (esImgbbDirecto(v)) pendientes[String(v).trim()] = true;
+  })));
+  const urls = Object.keys(pendientes);
+  Logger.log('Fotos de ImgBB por pasar: ' + urls.length);
+
+  // 1) Subir en lotes paralelos
+  const nuevas = {};
+  const fallas = [];
+  let i = 0;
+  for (; i < urls.length && Date.now() - inicio < LIMITE; i += LOTE) {
+    const lote = urls.slice(i, i + LOTE);
+    const pedidos = lote.map(u => pedidoCloudinary(cfg, u, { public_id: idCloudinaryDe(u), overwrite: 'false' }));
+    const resp = UrlFetchApp.fetchAll(pedidos);
+    resp.forEach((r, k) => {
+      try { nuevas[lote[k]] = leerRespuestaCloudinary(r); }
+      catch (err) { fallas.push(lote[k] + ' -> ' + err.message); }
+    });
+  }
+  const sinIntentar = Math.max(urls.length - i, 0);
+
+  // 2) Cambiar los enlaces en las hojas. Por columna: si la columna no tiene
+  //    formulas se escribe entera de una vez; si tiene, celda por celda.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  let cambiadas = 0;
+  try {
+    hojas.forEach(sh => {
+      const rango = sh.getDataRange();
+      const vals  = rango.getValues();
+      const nCols = vals[0].length;
+      for (let c = 0; c < nCols; c++) {
+        const filas = [];
+        for (let r = 0; r < vals.length; r++) {
+          const v = String(vals[r][c] || '').trim();
+          if (esImgbbDirecto(v) && nuevas[v]) filas.push(r);
+        }
+        if (!filas.length) continue;
+        const col = sh.getRange(1, c + 1, vals.length, 1);
+        const tieneFormulas = col.getFormulas().some(f => f[0]);
+        if (tieneFormulas) {
+          filas.forEach(r => sh.getRange(r + 1, c + 1).setValue(nuevas[String(vals[r][c]).trim()]));
+        } else {
+          const colVals = vals.map(f => [f[c]]);
+          filas.forEach(r => { colVals[r][0] = nuevas[String(vals[r][c]).trim()]; });
+          col.setValues(colVals);
+        }
+        cambiadas += filas.length;
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+
+  Logger.log('Subidas a Cloudinary: ' + Object.keys(nuevas).length + ' | enlaces cambiados en la hoja: ' + cambiadas);
+  if (nuevas[LOGO_IMGBB]) Logger.log('Logo: ' + nuevas[LOGO_IMGBB]);
+  if (fallas.length) {
+    Logger.log('No se pudieron pasar ' + fallas.length + ' (se quedan con el enlace de ImgBB):');
+    fallas.slice(0, 30).forEach(f => Logger.log('  ' + f));
+  }
+  if (sinIntentar) Logger.log('Faltan ' + sinIntentar + ' fotos por tiempo: ejecuta de nuevo migrarImagenesACloudinary.');
+  else if (!fallas.length) Logger.log('Listo: todas las fotos estan en Cloudinary.');
 }
 
 // ── VENTAS ───────────────────────────────────────────────────
