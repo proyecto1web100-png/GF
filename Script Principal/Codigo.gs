@@ -110,6 +110,7 @@ function doPost(e) {
     const type = data.type;
 
     if (data.products !== undefined) return handleProductos(data);
+    if (type === 'productos_fin')    return handleProductosFin(data);
     if (type === 'banners')          return handleBanners(data);
     if (type === 'config')           return handleConfig(data);
     if (type === 'categorias')       return handleCategorias(data);
@@ -136,10 +137,24 @@ const PROD_HEADERS = ['nombre','categoria','subcategoria','precio','descripcion'
 const PROD_COL = { nombre:0, categoria:1, subcategoria:2, precio:3, descripcion:4, cantidad:5, emoji:6, imagen:7, nuevo:8, oculto:9 };
 
 function handleProductos(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    return escribirProductos(data);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function escribirProductos(data) {
   const ss        = SpreadsheetApp.openById(SHEET_ID);
   const sheet     = ss.getSheets()[0];
   const productos = data.products || [];
   const NCOL      = PROD_HEADERS.length;
+  // El panel solo edita lo que ya esta en la hoja. Si pudiera agregar filas,
+  // un panel abierto desde antes de una limpieza volveria a crear los
+  // repetidos al guardar. Las filas nuevas solo las crea el sync de RMS.
+  const soloActualizar = data.soloActualizar === true;
 
   // 1) Asegurar la fila de encabezados
   if (sheet.getLastRow() === 0) {
@@ -184,12 +199,18 @@ function handleProductos(data) {
   let actualizados = 0;
 
   productos.forEach(p => {
+    // Lo que manda RMS se repara ("NiÃ±a" -> "Niña") para que coincida con
+    // la fila buena y no cree otra. Lo del panel no: trae el nombre tal como
+    // esta en la hoja y repararlo lo haria pisar otra fila.
+    if (!soloActualizar) p.nombre = repararTexto(p.nombre);
     const key = String(p.nombre || '').toLowerCase().trim();
     if (!key) return;
 
     if (idx[key] !== undefined) {
       aplicar(valores[idx[key]], p);
       actualizados++;
+    } else if (soloActualizar) {
+      return;
     } else if (idxNuevos[key] !== undefined) {
       aplicar(nuevos[idxNuevos[key]], p);
     } else {
@@ -204,6 +225,228 @@ function handleProductos(data) {
   if (nuevos.length)  sheet.getRange(2 + valores.length, 1, nuevos.length, NCOL).setValues(nuevos);
 
   return ok(productos.length + ' productos procesados, ' + actualizados + ' actualizados, ' + nuevos.length + ' nuevos agregados');
+}
+
+// ── LIMPIEZA DE PRODUCTOS ────────────────────────────────────
+//  Por que habia repetidos: la hoja solo agrega o actualiza por nombre, nunca
+//  borra. Cuando el sync mandaba "NiÃ±a" en vez de "Niña", se crearon filas
+//  con el nombre dañado. Al corregirse la tipografia, RMS empezo a mandar el
+//  nombre bueno, que no coincide con el dañado, y se agrego otra fila. La
+//  dañada quedo para siempre con la cantidad vieja (RMS ya no la actualiza).
+//
+//  handleProductosFin: el sync manda al final la lista completa de nombres
+//  de RMS y se quitan las filas que ya no estan ahi (dañadas, repetidas o
+//  productos que se desactivaron).
+//  limpiarProductosDuplicados: lo mismo pero sin RMS, para correrlo a mano.
+//
+//  Nada se pierde: las filas quitadas se copian a la hoja ProductosEliminados,
+//  y la foto/descripcion/subcategoria/emoji de una fila dañada pasa a la
+//  buena si la buena no tiene.
+
+// Contenido que se carga a mano en la hoja (no viene de RMS) y que se pasa de
+// la fila dañada a la buena. "oculto" y "nuevo" NO: si alguien oculto la
+// dañada justamente por estar repetida, no hay que ocultar tambien la buena.
+const PROD_MANUALES = ['subcategoria','descripcion','emoji','imagen'];
+
+// Caracteres de Windows-1252 en 0x80-0x9F que no coinciden con Latin-1
+const CP1252_BYTE = {
+  0x20AC:0x80, 0x201A:0x82, 0x0192:0x83, 0x201E:0x84, 0x2026:0x85, 0x2020:0x86,
+  0x2021:0x87, 0x02C6:0x88, 0x2030:0x89, 0x0160:0x8A, 0x2039:0x8B, 0x0152:0x8C,
+  0x017D:0x8E, 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2022:0x95,
+  0x2013:0x96, 0x2014:0x97, 0x02DC:0x98, 0x2122:0x99, 0x0161:0x9A, 0x203A:0x9B,
+  0x0153:0x9C, 0x017E:0x9E, 0x0178:0x9F
+};
+
+// Decodifica bytes UTF-8; devuelve null si no son UTF-8 valido
+function utf8Estricto(bytes) {
+  let s = '', i = 0;
+  while (i < bytes.length) {
+    const b = bytes[i];
+    if (b < 0x80) { s += String.fromCharCode(b); i++; continue; }
+    let n, cp;
+    if (b >= 0xC2 && b <= 0xDF)      { n = 1; cp = b & 0x1F; }
+    else if (b >= 0xE0 && b <= 0xEF) { n = 2; cp = b & 0x0F; }
+    else if (b >= 0xF0 && b <= 0xF4) { n = 3; cp = b & 0x07; }
+    else return null;
+    if (i + n >= bytes.length) return null;
+    for (let k = 1; k <= n; k++) {
+      const c = bytes[i + k];
+      if ((c & 0xC0) !== 0x80) return null;
+      cp = (cp << 6) | (c & 0x3F);
+    }
+    s += String.fromCodePoint(cp);
+    i += n + 1;
+  }
+  return s;
+}
+
+// "NiÃ±a" -> "Niña". Si el texto no es de ese tipo de daño, lo deja igual.
+function repararTexto(s) {
+  let t = String(s == null ? '' : s);
+  for (let vuelta = 0; vuelta < 2; vuelta++) {
+    if (!/[Â-Å][\u0080-¿Œ-™]/.test(t)) break;
+    const bytes = [];
+    for (const ch of t) {
+      const c = ch.codePointAt(0);
+      if (c <= 0xFF) bytes.push(c);
+      else if (CP1252_BYTE[c] !== undefined) bytes.push(CP1252_BYTE[c]);
+      else return t;
+    }
+    const r = utf8Estricto(bytes);
+    if (r === null || r === t) break;
+    t = r;
+  }
+  return t;
+}
+
+// Nombre dañado: con el caracter de reemplazo, un "?" o restos tipo "Ã"
+function esSospechoso(s) {
+  return /[�?ÂÃ]/.test(String(s || ''));
+}
+
+function claveProducto(s) {
+  return repararTexto(s).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+// "ni?a" / "ni�a" (irrecuperables) -> patron que acepta "niña"
+function patronComodin(clave) {
+  const partes = clave.split(/[�?]+/);
+  if (partes.length < 2) return null;
+  return new RegExp('^' + partes.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^\\s]{1,2}') + '$');
+}
+
+function vacio(v) { return v === '' || v === null || v === undefined; }
+
+// Pasa a la fila que se queda lo que se edito a mano en la que se va
+function fusionarManuales(destino, origen) {
+  PROD_MANUALES.forEach(c => {
+    const i = PROD_COL[c];
+    if (vacio(destino[i]) && !vacio(origen[i])) destino[i] = origen[i];
+  });
+}
+
+// nombresRMS: lista completa de nombres de RMS, o null para limpiar sin RMS.
+function depurarProductos(nombresRMS) {
+  const ss     = SpreadsheetApp.openById(SHEET_ID);
+  const sheet  = ss.getSheets()[0];
+  const ANCHO  = Math.max(sheet.getLastColumn(), PROD_HEADERS.length);
+  const nFilas = Math.max(sheet.getLastRow() - 1, 0);
+  const res    = { antes: nFilas, quedan: nFilas, eliminadas: 0, renombradas: 0 };
+  if (!nFilas) return res;
+
+  const valores = sheet.getRange(2, 1, nFilas, ANCHO).getValues();
+  const nombre  = v => String(v[PROD_COL.nombre] || '');
+  const exacta  = v => nombre(v).toLowerCase().trim();
+  const enRMS   = nombresRMS
+    ? new Set(nombresRMS.map(n => repararTexto(n).toLowerCase().trim()).filter(Boolean))
+    : null;
+
+  // 1) Filas buenas: las que estan en RMS (o, sin RMS, las de nombre sano).
+  //    De repetidas exactas se queda la primera.
+  const queda    = valores.map(() => false);
+  const vistas   = {};
+  const porClave = {};
+  valores.forEach((v, i) => {
+    const k = exacta(v);
+    if (!k) { queda[i] = true; return; }   // fila sin nombre: no se toca
+    const buena = enRMS ? enRMS.has(k) : !esSospechoso(nombre(v));
+    if (buena && vistas[k] === undefined) {
+      vistas[k] = i;
+      queda[i]  = true;
+      const c = claveProducto(nombre(v));
+      if (porClave[c] === undefined) porClave[c] = i;
+    }
+  });
+
+  // 2) Las demas: si son la version dañada de una buena, le pasan sus datos
+  //    manuales y se van. Si no tienen pareja: con RMS se van (ya no existen);
+  //    sin RMS se repara el nombre si se puede y se quedan.
+  const eliminadas = [];
+  const ahora = new Date();
+  valores.forEach((v, i) => {
+    if (queda[i]) return;
+    const c = claveProducto(nombre(v));
+    let j = porClave[c];
+    if (j === undefined) {
+      const re = patronComodin(c);
+      if (re) {
+        const m = Object.keys(porClave).filter(k => re.test(k));
+        if (m.length === 1) j = porClave[m[0]];
+      }
+    }
+    if (j !== undefined) {
+      fusionarManuales(valores[j], v);
+      eliminadas.push([ahora].concat(v, ['repetido de: ' + nombre(valores[j])]));
+      return;
+    }
+    if (enRMS) {
+      eliminadas.push([ahora].concat(v, ['ya no esta en RMS']));
+      return;
+    }
+    const reparado = repararTexto(nombre(v));
+    if (reparado !== nombre(v) && !esSospechoso(reparado)) {
+      v[PROD_COL.nombre] = reparado;
+      res.renombradas++;
+    }
+    queda[i] = true;
+    const c2 = claveProducto(nombre(v));
+    if (porClave[c2] === undefined) porClave[c2] = i;
+  });
+
+  if (!eliminadas.length && !res.renombradas) return res;
+
+  // 3) Respaldo de lo quitado
+  if (eliminadas.length) {
+    let bk = ss.getSheetByName('ProductosEliminados');
+    if (!bk) {
+      bk = ss.insertSheet('ProductosEliminados', ss.getNumSheets());
+      const enc = ['fecha_eliminado'].concat(sheet.getRange(1, 1, 1, ANCHO).getValues()[0], ['motivo']);
+      bk.getRange(1, 1, 1, enc.length).setValues([enc]).setFontWeight('bold');
+    }
+    bk.getRange(bk.getLastRow() + 1, 1, eliminadas.length, eliminadas[0].length).setValues(eliminadas);
+  }
+
+  // 4) Reescribir la hoja solo con las que quedan
+  const quedan = valores.filter((v, i) => queda[i]);
+  if (quedan.length) sheet.getRange(2, 1, quedan.length, ANCHO).setValues(quedan);
+  if (quedan.length < nFilas) sheet.deleteRows(2 + quedan.length, nFilas - quedan.length);
+
+  res.quedan     = quedan.length;
+  res.eliminadas = eliminadas.length;
+  return res;
+}
+
+function handleProductosFin(data) {
+  const nombres = data.nombres || [];
+  // Si RMS no devolvio casi nada es un error de lectura, no una tienda vacia:
+  // no se borra nada.
+  if (nombres.length < 10) {
+    return out(JSON.stringify({ ok: false, error: 'productos_fin: solo llegaron ' + nombres.length + ' nombres, no se limpia la hoja' }));
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const r = depurarProductos(nombres);
+    return ok('limpieza: ' + r.antes + ' filas, ' + r.eliminadas + ' quitadas (repetidas o fuera de RMS), quedan ' + r.quedan);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Correr a mano desde el editor de Apps Script para limpiar ya, sin esperar
+// al proximo sync. Quita las filas dañadas que tienen su version buena y
+// corrige el nombre de las que se pueden reparar.
+function limpiarProductosDuplicados() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const r = depurarProductos(null);
+    Logger.log('Filas antes: ' + r.antes + ' | quitadas: ' + r.eliminadas +
+               ' | nombres corregidos: ' + r.renombradas + ' | quedan: ' + r.quedan);
+    Logger.log('Las filas quitadas estan en la hoja ProductosEliminados.');
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── VENTAS ───────────────────────────────────────────────────

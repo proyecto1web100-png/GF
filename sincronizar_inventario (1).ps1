@@ -51,11 +51,37 @@ function Send-Json($url, $body) {
             Write-Log ("ERROR Apps Script: " + $resp.error)
             $script:SyncErrores++
         }
+        return $resp
     } catch {
         Write-Log ("ERROR en Send-Json: " + $_)
         $script:SyncErrores++
         throw
     }
+}
+
+# IMPORTANTE: este archivo lo ejecuta powershell.exe (5.1), que lee los .ps1
+# sin BOM como ANSI. Una "ñ" escrita tal cual en el codigo llega como "Ã±".
+# Por eso en el codigo (no en comentarios) los acentos van con [char]0x00F1.
+
+# Repara texto que quedo con la tipografia rota: "NiÃ±a" -> "Niña".
+# Pasa cuando un texto UTF-8 se leyo como Windows-1252. Si el texto no es de
+# ese tipo (o ya esta bien) se devuelve igual.
+$script:Cp1252 = $null
+try {
+    $script:Cp1252 = [Text.Encoding]::GetEncoding(1252, [Text.EncoderFallback]::ExceptionFallback, [Text.DecoderFallback]::ExceptionFallback)
+} catch { }
+$script:Utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
+function Repair-Texto([string]$s) {
+    if ([string]::IsNullOrEmpty($s) -or -not $script:Cp1252) { return $s }
+    for ($v = 0; $v -lt 2; $v++) {
+        if ($s -cnotmatch '[\u00C2-\u00C5][\u0080-\u00BF\u0152-\u2122]') { break }
+        try {
+            $r = $script:Utf8Strict.GetString($script:Cp1252.GetBytes($s))
+        } catch { break }
+        if ($r -ceq $s) { break }
+        $s = $r
+    }
+    return $s
 }
 
 function Write-Log($msg) {
@@ -293,24 +319,53 @@ try {
     $filas = Invoke-Query $connStr $queryProductos
 
 $products = [System.Collections.Generic.List[object]]::new()
+    $porNombre = @{}
+    $nombresReparados = 0
+    $juntados = 0
     foreach ($row in $filas) {
         $cantVal = $row["cantidad"]
         $cant = if ($cantVal -eq [System.DBNull]::Value -or $null -eq $cantVal) { 0 } else { [int]$cantVal }
 
-        $cat = [string]$row["categoria"]
-        # Si la categoria es una variante corrupta de "Ropa Niñ@s", corregirla
-        if ($cat -match '^Ropa Ni.+@s$' -and $cat -ne 'Ropa Niñ@s') {
-            $cat = 'Ropa Niñ@s'
+        $cat = Repair-Texto ([string]$row["categoria"])
+        # Si la categoria es una variante corrupta de "Ropa Niñ@s", corregirla.
+        # Antes aqui estaba la "ñ" escrita tal cual y PowerShell 5.1 la leia
+        # como "Ã±": cada sync le ponia "Ropa NiÃ±@s" a todos esos productos.
+        $ninas = "Ropa Ni$([char]0x00F1)@s"
+        if ($cat -match '^Ropa Ni.+@s$' -and $cat -cne $ninas) {
+            $cat = $ninas
         }
 
-        $products.Add([PSCustomObject]@{
-            nombre    = $row["nombre"]
-            precio    = "L. " + [math]::Round($row["precio"], 2)
+        $nombreOriginal = [string]$row["nombre"]
+        $nombre = (Repair-Texto $nombreOriginal).Trim()
+        if ($nombre -cne $nombreOriginal.Trim()) { $nombresReparados++ }
+        if ($nombre -eq '') { continue }
+        $precio = if ($row["precio"] -eq [System.DBNull]::Value) { 0 } else { $row["precio"] }
+
+        # Si RMS tiene el mismo articulo con el nombre bueno y con el dañado,
+        # se juntan en uno solo (si no, la hoja tendria los dos).
+        $clave = $nombre.ToLowerInvariant()
+        if ($porNombre.ContainsKey($clave)) {
+            $prev = $porNombre[$clave]
+            if ($prev.cantidad -le 0 -and $cant -gt 0) { $prev.precio = "L. " + [math]::Round($precio, 2) }
+            $prev.cantidad += $cant
+            if (-not $prev.categoria) { $prev.categoria = $cat }
+            $juntados++
+            continue
+        }
+
+        $p = [PSCustomObject]@{
+            nombre    = $nombre
+            precio    = "L. " + [math]::Round($precio, 2)
             categoria = $cat
             cantidad  = $cant
-        })
+        }
+        $porNombre[$clave] = $p
+        $products.Add($p)
     }
     Write-Log ("Productos leidos desde RMS: " + $products.Count)
+    if ($nombresReparados -gt 0) {
+        Write-Log ("AVISO: " + $nombresReparados + " nombres venian con la tipografia rota desde RMS y se corrigieron al enviar (" + $juntados + " eran repetidos del nombre bueno). Conviene corregirlos tambien en RMS.")
+    }
 
     # DEBUG: mostrar productos sin categoria
     $sinCat = $products | Where-Object { $_.categoria -eq '' }
@@ -346,7 +401,7 @@ try {
             clear    = ($i -eq 0)
         } | ConvertTo-Json -Depth 5
 
-        Send-Json $WEB_APP_URL $body
+        Send-Json $WEB_APP_URL $body | Out-Null
         $sent += $block.Count
         Write-Log ("Enviados: " + $sent + " de " + $total)
     }
@@ -359,6 +414,30 @@ try {
 
 Write-Log "Productos enviados (falta verificar que la hoja los haya aceptado)."
 
+# 2b. LIMPIAR LA HOJA
+# La hoja solo agrega o actualiza por nombre: lo que ya no viene de RMS se
+# quedaba para siempre. Asi quedaron repetidos los articulos que se habian
+# guardado con la tipografia rota ("NiÃ±a") cuando empezo a llegar el nombre
+# bueno. Con la lista completa, el Apps Script quita las filas que no estan
+# en RMS (las copia antes a la hoja ProductosEliminados).
+# Solo se llega aqui si TODOS los bloques se enviaron bien.
+try {
+    $finBody = @{
+        token   = $SYNC_TOKEN
+        type    = "productos_fin"
+        nombres = @($products | ForEach-Object { $_.nombre })
+    } | ConvertTo-Json -Depth 3
+    $resp = Send-Json $WEB_APP_URL $finBody
+    if ($resp -and $resp.msg -and ([string]$resp.msg).StartsWith('tipo desconocido')) {
+        Write-Log "AVISO: el Apps Script publicado aun no tiene la limpieza de repetidos. Pegar el Codigo.gs nuevo y crear una nueva implementacion."
+    } elseif ($resp -and $resp.msg) {
+        Write-Log ("Hoja de productos: " + $resp.msg)
+    }
+} catch {
+    Write-Log ("ERROR al limpiar productos repetidos: " + $_)
+    $script:SyncErrores++
+}
+
 # 3. GUARDAR FECHA DE ULTIMA SINCRONIZACION
 $stampEnviado = Get-Date
 try {
@@ -367,7 +446,7 @@ try {
         type   = "config"
         config = @{ lastSync = ($stampEnviado.ToString("yyyy-MM-ddTHH:mm:ss")) }
     } | ConvertTo-Json -Depth 3
-    Send-Json $WEB_APP_URL $syncBody
+    Send-Json $WEB_APP_URL $syncBody | Out-Null
     Write-Log "Fecha de sincronizacion guardada en Sheets."
 } catch {
     Write-Log ("ERROR: no se pudo guardar fecha de sync: " + $_)
@@ -615,7 +694,7 @@ FROM [Transaction]
         resumen      = $resumen
     } | ConvertTo-Json -Depth 5
 
-    Send-Json $WEB_APP_URL $ventasBody
+    Send-Json $WEB_APP_URL $ventasBody | Out-Null
     Write-Log "Datos de ventas enviados a Sheets correctamente."
 
 } catch {

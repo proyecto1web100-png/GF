@@ -1894,8 +1894,84 @@ function aplicarLiquidacion(p) {
   return p;
 }
 
+// ── REPETIDOS POR TIPOGRAFÍA ─────────────────────────────────
+// Cuando el sync mandaba "NiÃ±a" en vez de "Niña" quedaron filas con el
+// nombre dañado, y al corregirse se agregó la fila buena al lado. La dañada
+// ya no la actualiza RMS (cantidad vieja). Aquí se muestra una sola: la de
+// nombre sano, con la foto/descripción de la dañada si la buena no tiene.
+// La hoja se limpia del todo con el Apps Script; esto es la red de seguridad.
+const CP1252_BYTE = {
+  0x20AC:0x80, 0x201A:0x82, 0x0192:0x83, 0x201E:0x84, 0x2026:0x85, 0x2020:0x86,
+  0x2021:0x87, 0x02C6:0x88, 0x2030:0x89, 0x0160:0x8A, 0x2039:0x8B, 0x0152:0x8C,
+  0x017D:0x8E, 0x2018:0x91, 0x2019:0x92, 0x201C:0x93, 0x201D:0x94, 0x2022:0x95,
+  0x2013:0x96, 0x2014:0x97, 0x02DC:0x98, 0x2122:0x99, 0x0161:0x9A, 0x203A:0x9B,
+  0x0153:0x9C, 0x017E:0x9E, 0x0178:0x9F
+};
+
+function repararTexto(s) {
+  let t = String(s == null ? '' : s);
+  for (let vuelta = 0; vuelta < 2; vuelta++) {
+    if (!/[\u00C2-\u00C5][\u0080-\u00BF\u0152-\u2122]/.test(t)) break;
+    const bytes = [];
+    for (const ch of t) {
+      const c = ch.codePointAt(0);
+      if (c <= 0xFF) bytes.push(c);
+      else if (CP1252_BYTE[c] !== undefined) bytes.push(CP1252_BYTE[c]);
+      else return t;
+    }
+    let r;
+    try { r = new TextDecoder('utf-8', { fatal: true }).decode(new Uint8Array(bytes)); }
+    catch (e) { break; }
+    if (r === t) break;
+    t = r;
+  }
+  return t;
+}
+
+function esSospechoso(s) { return /[\uFFFD?\u00C2\u00C3]/.test(String(s || '')); }
+function claveProducto(s) { return repararTexto(s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+
+// "ni?a" / "ni\uFFFDa" (irrecuperables) -> patrón que acepta "niña"
+function patronComodin(clave) {
+  const partes = clave.split(/[\uFFFD?]+/);
+  if (partes.length < 2) return null;
+  return new RegExp('^' + partes.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^\\s]{1,2}') + '$');
+}
+
+function quitarRepetidos(lista) {
+  const MANUALES = ['subcategoria', 'descripcion', 'emoji', 'imagen'];
+  const fusionar = (dest, orig) => MANUALES.forEach(c => {
+    if (!(dest[c] || '').toString().trim() && (orig[c] || '').toString().trim()) dest[c] = orig[c];
+  });
+  const buenos = [], porClave = {}, dudosos = [];
+  lista.forEach(p => {
+    if (esSospechoso(p.nombre)) { dudosos.push(p); return; }
+    const c = claveProducto(p.nombre);
+    if (porClave[c] === undefined) { porClave[c] = buenos.length; buenos.push(p); }
+    else fusionar(buenos[porClave[c]], p);     // repetido exacto: vale el primero
+  });
+  dudosos.forEach(p => {
+    const c = claveProducto(p.nombre);
+    let i = porClave[c];
+    if (i === undefined) {
+      const re = patronComodin(c);
+      if (re) {
+        const m = Object.keys(porClave).filter(k => re.test(k));
+        if (m.length === 1) i = porClave[m[0]];
+      }
+    }
+    if (i !== undefined) { fusionar(buenos[i], p); return; }
+    // Sin pareja: se muestra, con el nombre reparado si se puede
+    p.nombre = repararTexto(p.nombre);
+    const c2 = claveProducto(p.nombre);
+    if (porClave[c2] === undefined) porClave[c2] = buenos.length;
+    buenos.push(p);
+  });
+  return buenos;
+}
+
 function parseRows(data) {
-  return data.map(row => {
+  return quitarRepetidos(data.map(row => {
     const obj = {};
     Object.keys(row).forEach(k => { obj[k.toLowerCase().trim()] = row[k]; });
     obj.categoria = fixCat(obj.categoria);
@@ -1903,8 +1979,7 @@ function parseRows(data) {
     aplicarLiquidacion(obj);
     obj._precio = getPrecioNum(obj);   // ya con la rebaja aplicada
     return obj;
-  }).filter(p => {
-    if (!p.nombre) return false;
+  }).filter(p => !!p.nombre)).filter(p => {
     if ((p.oculto||'').toString().toUpperCase() === 'SI') return false;
     const cant = parseFloat((p.cantidad||'').toString().trim());
     if (isNaN(cant) || cant < 1) return false;
