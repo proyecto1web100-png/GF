@@ -1,6 +1,9 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v7
-//  Cambios vs v6:
+//  Gaby's Fashion — Google Apps Script v8
+//  Cambios vs v7:
+//    - Limpieza de productos repetidos (limpiarProductosDuplicados)
+//    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
+//  Cambios de v7 (vs v6):
 //    - Corregida la llave faltante en out() (rompia el archivo)
 //    - handleProductos: escritura por lotes (2 llamadas en vez de ~40 000)
 //    - handleVentas / banners / categorias: encabezado + datos en un solo setValues
