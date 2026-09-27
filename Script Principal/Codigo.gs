@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v8.4
+//  Gaby's Fashion — Google Apps Script v8.5
 //  Cambios vs v7:
 //    - Limpieza de productos repetidos (limpiarProductosDuplicados)
 //    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
@@ -571,6 +571,34 @@ function idCloudinaryDe(url) {
   return CLD_MIGRADAS + '/' + limpio;
 }
 
+// Descarga fotos de ImgBB desde Apps Script. Devuelve por cada una
+// { datos: 'data:image/...;base64,...' } o { motivo: 'por que fallo' }.
+function bajarDeImgbb(urls) {
+  const opciones = {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+      'Referer': 'https://imgbb.com/'
+    }
+  };
+  let resp;
+  try {
+    resp = UrlFetchApp.fetchAll(urls.map(u => Object.assign({ url: u }, opciones)));
+  } catch (e) {
+    // fetchAll falla entero si una sola no conecta: se prueban de a una
+    resp = urls.map(u => { try { return UrlFetchApp.fetch(u, opciones); } catch (err) { return err; } });
+  }
+  return resp.map(r => {
+    if (r instanceof Error) return { motivo: r.message };
+    if (r.getResponseCode() !== 200) return { motivo: 'HTTP ' + r.getResponseCode() };
+    const blob = r.getBlob();
+    const tipo = blob.getContentType() || '';
+    if (!/^image\//.test(tipo)) return { motivo: 'no es imagen (' + tipo + ')' };
+    return { datos: 'data:' + tipo + ';base64,' + Utilities.base64Encode(blob.getBytes()) };
+  });
+}
+
 // Prueba: solo cuenta cuantas fotos de ImgBB hay en cada hoja. No sube nada.
 function contarImagenesImgbb() {
   const ss = SpreadsheetApp.openById(SHEET_ID);
@@ -620,10 +648,17 @@ function migrarImagenesACloudinary() {
     let i = 0;
     for (; i < lista.length && Date.now() - inicio < LIMITE; i += LOTE) {
       const lote = lista.slice(i, i + LOTE);
-      const pedidos = lote.map(u => pedidoCloudinary(cfg, u, { public_id: idCloudinaryDe(u), overwrite: 'false' }));
+      // Primero se baja la foto desde Google (ImgBB le corta la conexion a
+      // Cloudinary); si no se pudo, se le pasa el enlace a Cloudinary.
+      const bajadas = bajarDeImgbb(lote);
+      const pedidos = lote.map((u, k) => pedidoCloudinary(cfg, bajadas[k].datos || u,
+                                           { public_id: idCloudinaryDe(u), overwrite: 'false' }));
       UrlFetchApp.fetchAll(pedidos).forEach((r, k) => {
         try { nuevas[lote[k]] = leerRespuestaCloudinary(r); delete error[lote[k]]; }
-        catch (err) { error[lote[k]] = err.message; }
+        catch (err) {
+          error[lote[k]] = bajadas[k].datos ? err.message
+                         : err.message + ' (descarga directa: ' + bajadas[k].motivo + ')';
+        }
       });
       Utilities.sleep(300);
       if ((i / LOTE) % 5 === 4) {
