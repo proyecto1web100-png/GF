@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v8.1
+//  Gaby's Fashion — Google Apps Script v8.2
 //  Cambios vs v7:
 //    - Limpieza de productos repetidos (limpiarProductosDuplicados)
 //    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
@@ -519,7 +519,10 @@ function firmaCloudinary(params, secret) {
 // Arma el pedido de subida. file: un enlace (Cloudinary lo descarga) o un
 // data URI "data:image/jpeg;base64,...".
 function pedidoCloudinary(cfg, file, opciones) {
-  const params = Object.assign({ timestamp: Math.floor(Date.now() / 1000) }, opciones);
+  // Todo como texto: si timestamp va como numero, UrlFetchApp lo manda como
+  // "1.790473123E9", no coincide con lo firmado y Cloudinary da 401.
+  const params = Object.assign({ timestamp: String(Math.floor(Date.now() / 1000)) }, opciones);
+  Object.keys(params).forEach(k => { params[k] = String(params[k]); });
   return {
     url: 'https://api.cloudinary.com/v1_1/' + cfg.cloud + '/image/upload',
     method: 'post',
