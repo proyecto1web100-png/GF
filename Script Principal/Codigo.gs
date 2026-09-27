@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════
-//  Gaby's Fashion — Google Apps Script v8.2
+//  Gaby's Fashion — Google Apps Script v8.3
 //  Cambios vs v7:
 //    - Limpieza de productos repetidos (limpiarProductosDuplicados)
 //    - Fotos en Cloudinary (contarImagenesImgbb, migrarImagenesACloudinary)
@@ -598,7 +598,7 @@ function migrarImagenesACloudinary() {
   probarCloudinary(cfg);   // si la clave esta mal, se corta aqui sin tocar nada
   const inicio = Date.now();
   const LIMITE = 4.5 * 60 * 1000;
-  const LOTE   = 8;
+  const LOTE   = 4;   // ImgBB corta si se le piden muchas a la vez
   const ss     = SpreadsheetApp.openById(SHEET_ID);
 
   const hojas = ss.getSheets().filter(sh => sh.getName() !== 'ProductosEliminados' && sh.getLastRow() > 0);
@@ -610,20 +610,29 @@ function migrarImagenesACloudinary() {
   const urls = Object.keys(pendientes);
   Logger.log('Fotos de ImgBB por pasar: ' + urls.length);
 
-  // 1) Subir en lotes paralelos
+  // 1) Subir en lotes paralelos chicos, con pausa entre lotes
   const nuevas = {};
-  const fallas = [];
-  let i = 0;
-  for (; i < urls.length && Date.now() - inicio < LIMITE; i += LOTE) {
-    const lote = urls.slice(i, i + LOTE);
-    const pedidos = lote.map(u => pedidoCloudinary(cfg, u, { public_id: idCloudinaryDe(u), overwrite: 'false' }));
-    const resp = UrlFetchApp.fetchAll(pedidos);
-    resp.forEach((r, k) => {
-      try { nuevas[lote[k]] = leerRespuestaCloudinary(r); }
-      catch (err) { fallas.push(lote[k] + ' -> ' + err.message); }
-    });
+  const error  = {};   // url -> mensaje del ultimo intento
+  const subir = lista => {
+    let i = 0;
+    for (; i < lista.length && Date.now() - inicio < LIMITE; i += LOTE) {
+      const lote = lista.slice(i, i + LOTE);
+      const pedidos = lote.map(u => pedidoCloudinary(cfg, u, { public_id: idCloudinaryDe(u), overwrite: 'false' }));
+      UrlFetchApp.fetchAll(pedidos).forEach((r, k) => {
+        try { nuevas[lote[k]] = leerRespuestaCloudinary(r); delete error[lote[k]]; }
+        catch (err) { error[lote[k]] = err.message; }
+      });
+      Utilities.sleep(300);
+    }
+    return lista.slice(i);   // las que no se alcanzaron a intentar
+  };
+  let sinIntentar = subir(urls).length;
+  // Segundo intento de las que fallaron (ImgBB responde a ratos)
+  if (!sinIntentar && Object.keys(error).length) {
+    Utilities.sleep(3000);
+    sinIntentar = subir(Object.keys(error)).length;
   }
-  const sinIntentar = Math.max(urls.length - i, 0);
+  const fallas = Object.keys(error).map(u => u + ' -> ' + error[u]);
 
   // 2) Cambiar los enlaces en las hojas. Por columna: si la columna no tiene
   //    formulas se escribe entera de una vez; si tiene, celda por celda.
@@ -661,8 +670,18 @@ function migrarImagenesACloudinary() {
   Logger.log('Subidas a Cloudinary: ' + Object.keys(nuevas).length + ' | enlaces cambiados en la hoja: ' + cambiadas);
   if (nuevas[LOGO_IMGBB]) Logger.log('Logo: ' + nuevas[LOGO_IMGBB]);
   if (fallas.length) {
-    Logger.log('No se pudieron pasar ' + fallas.length + ' (se quedan con el enlace de ImgBB):');
-    fallas.slice(0, 30).forEach(f => Logger.log('  ' + f));
+    Logger.log('No se pudieron pasar ' + fallas.length + ' (se quedan con el enlace de ImgBB).');
+    // Resumen por tipo de error, sin la URL (en el registro las lineas largas se cortan)
+    const tipos = {};
+    Object.keys(error).forEach(u => {
+      const t = error[u].split(u).join('').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim();
+      tipos[t] = (tipos[t] || 0) + 1;
+    });
+    Object.keys(tipos).sort((a, b) => tipos[b] - tipos[a]).forEach(t => Logger.log('  ' + tipos[t] + ' x ' + t));
+    Logger.log('Ejemplos:');
+    fallas.slice(0, 5).forEach(f => Logger.log('  ' + f));
+    Logger.log('Si el error es 404 / not found, esa foto ya no existe en ImgBB y hay que subirla de nuevo desde el panel. ' +
+               'Si es 5xx / timeout, ImgBB no respondio: vuelve a ejecutar mas tarde.');
   }
   if (sinIntentar) Logger.log('Faltan ' + sinIntentar + ' fotos por tiempo: ejecuta de nuevo migrarImagenesACloudinary.');
   else if (!fallas.length) Logger.log('Listo: todas las fotos estan en Cloudinary.');
