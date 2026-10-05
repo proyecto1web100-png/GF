@@ -1,0 +1,2 @@
+const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'}).catch(()=>chromium.launch());
+for(const [f,h] of [['story',1920],['feed',1350]]){const p=await b.newPage({viewport:{width:1080,height:h}});await p.goto('file://'+__dirname+'/'+f+'.html');await p.waitForTimeout(1500);await p.screenshot({path:__dirname+'/'+f+'.png'});}await b.close()})();
