@@ -1,0 +1,17 @@
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0e0e0e;color:#f0ead6;font-family:'Montserrat',sans-serif}
+.p{position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 0%,#2a2416 0%,#0e0e0e 60%);display:flex;flex-direction:column;align-items:center;text-align:center}
+.p:before{content:"";position:absolute;inset:36px;border:2px solid #c9a84c;pointer-events:none}
+.brand{font-family:'Playfair Display',serif;color:#c9a84c;letter-spacing:.08em}
+.kick{letter-spacing:.4em;text-transform:uppercase;color:#9a8e7a;font-weight:600}
+h1{font-family:'Playfair Display',serif;font-weight:700;line-height:1.02}
+h1 em{color:#c9a84c;font-style:italic}
+.date{border:2px solid #c9a84c;color:#c9a84c;font-weight:700;letter-spacing:.06em}
+.date b{color:#f0ead6;display:block;font-family:'Playfair Display',serif}
+.grid{display:grid;grid-template-columns:1fr 1fr}
+.it{border-top:1px solid #c9a84c55;text-align:left}
+.it span{color:#c9a84c;font-weight:700;display:block;letter-spacing:.15em;text-transform:uppercase}
+.svc{color:#f0ead6}
+.svc i{color:#c9a84c;font-style:normal}
+.cta{background:#c9a84c;color:#0e0e0e;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.foot{color:#9a8e7a;letter-spacing:.12em}
